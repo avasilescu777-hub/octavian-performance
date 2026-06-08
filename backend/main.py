@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 import httpx
 import os
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from analysis.training_load import compute_training_load
 from analysis.predictions import predict_races
@@ -95,15 +96,22 @@ async def refresh_token(refresh_token: str = Query(...)):
     return resp.json()
 
 
-async def fetch_all_activities(access_token: str, per_page: int = 100) -> list:
+async def fetch_all_activities(access_token: str, per_page: int = 100, months: int = 0) -> list:
+    """Fetch activities. If months > 0, only fetch activities from the last N months."""
     activities = []
     page = 1
+    params: dict = {"per_page": per_page, "page": page}
+    if months > 0:
+        after_ts = int((datetime.now(timezone.utc) - timedelta(days=months * 30)).timestamp())
+        params["after"] = after_ts
+
     async with httpx.AsyncClient() as client:
         while True:
+            params["page"] = page
             resp = await client.get(
                 "https://www.strava.com/api/v3/athlete/activities",
                 headers={"Authorization": f"Bearer {access_token}"},
-                params={"per_page": per_page, "page": page},
+                params=params,
             )
             if resp.status_code != 200:
                 break
@@ -125,6 +133,7 @@ async def get_activities(access_token: str = Query(...)):
 
 @app.get("/analysis/training-load")
 async def get_training_load(access_token: str = Query(...)):
+    # Training load needs full history for accurate CTL curve
     activities = await fetch_all_activities(access_token)
     result = compute_training_load(activities)
     return result
@@ -132,7 +141,7 @@ async def get_training_load(access_token: str = Query(...)):
 
 @app.get("/analysis/fitness")
 async def get_fitness(access_token: str = Query(...)):
-    activities = await fetch_all_activities(access_token)
+    activities = await fetch_all_activities(access_token, months=12)
     vo2max = estimate_vo2max(activities)
     ftp = estimate_ftp(activities)
     css = estimate_css(activities)
@@ -148,14 +157,14 @@ async def get_zones(
     access_token: str = Query(...),
     sport_type: str = Query("Run"),
 ):
-    activities = await fetch_all_activities(access_token)
+    activities = await fetch_all_activities(access_token, months=12)
     zones = compute_zones(activities, sport_type)
     return zones
 
 
 @app.get("/analysis/predictions")
 async def get_predictions(access_token: str = Query(...)):
-    activities = await fetch_all_activities(access_token)
+    activities = await fetch_all_activities(access_token, months=12)
     predictions = predict_races(activities)
     return predictions
 
