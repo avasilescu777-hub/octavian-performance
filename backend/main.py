@@ -15,7 +15,11 @@ app = FastAPI(title="Octavian Performance API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://octavian-performance.vercel.app",
+        "https://octavian-performance-j42ysvmgp-pungescu-s-projects.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
