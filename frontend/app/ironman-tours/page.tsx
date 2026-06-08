@@ -137,15 +137,17 @@ export default function IronmanToursPage() {
     const token = getToken();
     if (!token) { router.replace("/"); return; }
     setAthleteName(getAthleteName());
-    Promise.all([
+    Promise.allSettled([
       fetchPredictions(token),
       fetchFitness(token),
       fetchTrainingLoad(token),
       fetchIronmanCoach(token),
-    ])
-      .then(([p, f, l, c]) => { setPredictions(p); setFitness(f); setLoad(l); setCoach(c); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    ]).then(([p, f, l, c]) => {
+      if (p.status === "fulfilled") setPredictions(p.value);
+      if (f.status === "fulfilled") setFitness(f.value);
+      if (l.status === "fulfilled") setLoad(l.value);
+      if (c.status === "fulfilled") setCoach(c.value);
+    }).finally(() => setLoading(false));
   }, [router]);
 
   const hasCoach = coach && Object.keys(coach.scenarios || {}).length > 0;
