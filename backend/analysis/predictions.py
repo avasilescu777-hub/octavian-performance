@@ -1,16 +1,13 @@
 """
-Ironman-specific race predictions using long efforts and fatigue factors.
+Ironman-specific race predictions using actual Strava average_speed data.
 
 Methodology:
-- Swim:  CSS from 400/200m OR pace from long swims (>1500m), +6% open water factor
-- Bike:  Average speed from longest rides (>2h), weighted by duration proximity to 180km
-- Run:   Pace from long runs (>15km), +18% Ironman fatigue penalty vs standalone marathon
+- Swim:  Weighted average pace from swim sessions >400m (Strava average_speed), +6% open water
+- Bike:  Weighted median from outdoor rides >30km (Strava average_speed), excludes VirtualRide
+- Run:   Flat-equivalent pace from runs >8km, grade-adjusted for elevation gain, +18% Ironman fatigue
 - Total: swim + T1 + bike + T2 + run
-
-Standalone race predictions use best effort with Riegel formula.
 """
 from typing import Optional
-from analysis.fitness import estimate_css
 
 RIEGEL_EXP = 1.06
 
@@ -51,35 +48,40 @@ def riegel(t1: float, d1: float, d2: float) -> float:
 # ─── SWIM ────────────────────────────────────────────────────────────────────
 
 def _swim_speed_from_activities(activities: list) -> Optional[tuple[float, str]]:
-    """Returns (meters_per_second, method_description)."""
+    """
+    Returns (meters_per_second, method_description).
+    Uses Strava average_speed directly — no CSS formula, just real training pace.
+    Filters sessions >= 400m to exclude warmup dips.
+    """
     swims = [a for a in activities
              if a.get("sport_type", a.get("type", "")) == "Swim"
-             and a.get("distance", 0) > 0 and a.get("moving_time", 0) > 0]
+             and a.get("distance", 0) >= 400
+             and a.get("moving_time", 0) > 0]
+    if not swims:
+        # fallback: any swim
+        swims = [a for a in activities
+                 if a.get("sport_type", a.get("type", "")) == "Swim"
+                 and a.get("distance", 0) > 0 and a.get("moving_time", 0) > 0]
     if not swims:
         return None
 
-    # Try CSS first (most accurate)
-    css_pace = estimate_css(activities)  # s/100m
-    if css_pace:
-        speed = 100 / css_pace
-        return (speed, f"CSS {css_pace:.1f}s/100m")
+    # Use Strava's average_speed if available, else compute from distance/time
+    speeds = []
+    for a in swims:
+        spd = a.get("average_speed")
+        if spd and spd > 0:
+            speeds.append((spd, a["distance"]))
+        elif a.get("distance") and a.get("moving_time"):
+            speeds.append((a["distance"] / a["moving_time"], a["distance"]))
 
-    # Long swim sessions (>1500m) — average pace
-    long_swims = [a for a in swims if a.get("distance", 0) >= 1500]
-    if long_swims:
-        # weight by distance (longer = more representative)
-        total_dist = sum(a["distance"] for a in long_swims)
-        total_time = sum(a["moving_time"] for a in long_swims)
-        avg_speed = total_dist / total_time
-        pace_per_100 = 100 / avg_speed
-        return (avg_speed, f"medie {pace_per_100:.1f}s/100m din {len(long_swims)} sesiuni lungi")
+    if not speeds:
+        return None
 
-    # Fallback: any swim
-    total_dist = sum(a["distance"] for a in swims)
-    total_time = sum(a["moving_time"] for a in swims)
-    avg_speed = total_dist / total_time
+    # Weighted average by distance
+    total_weight = sum(d for _, d in speeds)
+    avg_speed = sum(s * d for s, d in speeds) / total_weight
     pace_per_100 = 100 / avg_speed
-    return (avg_speed, f"medie {pace_per_100:.1f}s/100m din toate sesiunile")
+    return (avg_speed, f"medie {fmt(pace_per_100)}/100m din {len(swims)} sesiuni")
 
 
 def predict_swim(activities: list, dist_m: float, open_water: bool = True) -> Optional[dict]:
@@ -102,43 +104,42 @@ def predict_swim(activities: list, dist_m: float, open_water: bool = True) -> Op
 # ─── BIKE ────────────────────────────────────────────────────────────────────
 
 def _bike_speed_from_activities(activities: list) -> Optional[tuple[float, str]]:
-    """Returns (meters_per_second, method_description)."""
+    """
+    Returns (meters_per_second, method_description).
+    Uses Strava average_speed from outdoor rides only (excludes VirtualRide/Zwift).
+    Filters rides >= 30km to exclude short recovery spins.
+    Weighted average by distance.
+    """
+    # Outdoor rides >= 30km only
     rides = [a for a in activities
-             if a.get("sport_type", a.get("type", "")) in ("Ride", "VirtualRide")
-             and a.get("moving_time", 0) >= 3600  # at least 1h
-             and a.get("distance", 0) > 0]
+             if a.get("sport_type", a.get("type", "")) == "Ride"
+             and a.get("distance", 0) >= 30000
+             and a.get("moving_time", 0) > 0]
+
     if not rides:
-        # fallback: any ride
+        # fallback: any outdoor ride
         rides = [a for a in activities
-                 if a.get("sport_type", a.get("type", "")) in ("Ride", "VirtualRide")
+                 if a.get("sport_type", a.get("type", "")) == "Ride"
                  and a.get("distance", 0) > 0 and a.get("moving_time", 0) > 0]
     if not rides:
         return None
 
-    # Weight rides by duration — longer rides more representative for 180km
-    # Cap weight at 6h (equivalent to Ironman bike time)
-    long_rides = sorted(rides, key=lambda x: x.get("moving_time", 0), reverse=True)[:10]
+    speeds = []
+    for a in rides:
+        spd = a.get("average_speed")
+        if spd and spd > 0:
+            speeds.append((spd, a["distance"]))
+        elif a.get("distance") and a.get("moving_time"):
+            speeds.append((a["distance"] / a["moving_time"], a["distance"]))
 
-    weighted_speed = 0.0
-    total_weight = 0.0
-    for ride in long_rides:
-        dist = ride.get("distance", 0)
-        time = ride.get("moving_time", 0)
-        if not dist or not time:
-            continue
-        speed = dist / time  # m/s
-        # weight = capped duration in hours
-        weight = min(time / 3600, 6.0)
-        weighted_speed += speed * weight
-        total_weight += weight
-
-    if total_weight == 0:
+    if not speeds:
         return None
 
-    avg_speed = weighted_speed / total_weight
-    kmh = avg_speed * 3.6
-    n = len(long_rides)
-    return (avg_speed, f"{kmh:.1f} km/h medie din cele mai lungi {n} ieșiri")
+    # Weighted average by distance
+    total_weight = sum(d for _, d in speeds)
+    avg_speed = sum(s * d for s, d in speeds) / total_weight
+    kmh = round(avg_speed * 3.6, 1)
+    return (avg_speed, f"{kmh} km/h medie din {len(rides)} ieșiri outdoor")
 
 
 def predict_bike(activities: list, dist_m: float) -> Optional[dict]:

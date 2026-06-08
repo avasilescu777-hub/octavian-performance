@@ -141,7 +141,7 @@ async def get_training_load(access_token: str = Query(...)):
 
 @app.get("/analysis/fitness")
 async def get_fitness(access_token: str = Query(...)):
-    activities = await fetch_all_activities(access_token, months=12)
+    activities = await fetch_all_activities(access_token, months=6)
     vo2max = estimate_vo2max(activities)
     ftp = estimate_ftp(activities)
     css = estimate_css(activities)
@@ -157,14 +157,14 @@ async def get_zones(
     access_token: str = Query(...),
     sport_type: str = Query("Run"),
 ):
-    activities = await fetch_all_activities(access_token, months=12)
+    activities = await fetch_all_activities(access_token, months=6)
     zones = compute_zones(activities, sport_type)
     return zones
 
 
 @app.get("/analysis/predictions")
 async def get_predictions(access_token: str = Query(...)):
-    activities = await fetch_all_activities(access_token, months=12)
+    activities = await fetch_all_activities(access_token, months=6)
     predictions = predict_races(activities)
     return predictions
 
