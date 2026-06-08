@@ -208,6 +208,63 @@ export default function IronmanToursPage() {
 
         {!loading && (
           <>
+            {/* ── PREDICȚIE IRONMAN — CARD PRINCIPAL ────────────────────────── */}
+            {(() => {
+              const r = coach?.scenarios?.realistic;
+              const im = predictions?.triathlon?.["Ironman"];
+              if (!r && !im) return null;
+              const swim     = r?.swim     ?? im?.swim     ?? "—";
+              const swimPace = r?.swim_pace ?? im?.swim_pace_100m ?? null;
+              const bike     = r?.bike     ?? im?.bike     ?? "—";
+              const bikeSpd  = r?.bike_speed ?? (im?.bike_speed_kmh ? `${im.bike_speed_kmh} km/h` : null);
+              const run      = r?.run      ?? im?.run      ?? "—";
+              const runPace  = r?.run_pace  ?? im?.run_pace_km ?? null;
+              const total    = r?.total    ?? im?.total    ?? "—";
+              const t1       = r?.T1 ?? "8:00";
+              const t2       = r?.T2 ?? "5:00";
+              return (
+                <div className="rounded-xl p-6 mb-5"
+                  style={{ background: "var(--surface)", border: "2px solid rgba(232,255,0,0.3)" }}>
+                  <p className="text-xs font-bold tracking-widest uppercase mb-4"
+                    style={{ color: "var(--text-muted)" }}>Predicție Ironman Tours · Scenariu realist</p>
+
+                  {/* Total */}
+                  <div className="text-center mb-6">
+                    <p className="text-xs font-semibold tracking-widest uppercase mb-1"
+                      style={{ color: "var(--text-muted)" }}>TIMP TOTAL ESTIMAT</p>
+                    <p className="text-6xl font-black" style={{ color: "var(--accent)" }}>{total}</p>
+                  </div>
+
+                  {/* Split-uri */}
+                  <div className="space-y-0">
+                    {[
+                      { emoji: "🏊", label: "Înot 3.8 km", time: swim, sub: swimPace ? `${swimPace}/100m · +6% apă liberă` : null, color: "var(--swim)" },
+                      { emoji: "↔", label: "T1", time: t1, sub: null, color: "var(--text-muted)" },
+                      { emoji: "🚴", label: "Ciclism 180 km", time: bike, sub: bikeSpd ?? null, color: "var(--bike)" },
+                      { emoji: "↔", label: "T2", time: t2, sub: null, color: "var(--text-muted)" },
+                      { emoji: "🏃", label: "Maraton 42.2 km", time: run, sub: runPace ? `${runPace}/km · +18% factor oboseală` : null, color: "var(--run)" },
+                    ].map(({ emoji, label, time, sub, color }) => (
+                      <div key={label} className="flex items-center justify-between py-3"
+                        style={{ borderBottom: "1px solid var(--border)" }}>
+                        <div className="flex items-center gap-3">
+                          <span className="w-6 text-center" style={{ color }}>{emoji}</span>
+                          <div>
+                            <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>{label}</p>
+                            {sub && <p className="text-xs" style={{ color: "var(--text-muted)" }}>{sub}</p>}
+                          </div>
+                        </div>
+                        <p className="text-xl font-black tabular-nums" style={{ color }}>{time}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="text-xs text-center mt-4" style={{ color: "var(--text-muted)" }}>
+                    bazat pe antrenamentele tale reale din Strava · ultimele 6 luni
+                  </p>
+                </div>
+              );
+            })()}
+
             {/* ── COACH: 3 SCENARII ─────────────────────────────────────────── */}
             {hasCoach && (
               <Section title="Analiză Coach — 3 Scenarii" icon="🎯" accent>
