@@ -164,20 +164,23 @@ def _run_pace_from_activities(activities: list) -> Optional[tuple[float, str]]:
     if not runs:
         return None
 
-    total_dist = 0.0
-    total_flat_time = 0.0
+    # Weight by dist^1.5: a 20km run weighs ~7× more than a 3km recovery jog
+    # (vs 6× with linear weighting), naturally de-emphasizing easy short runs.
+    total_weight = 0.0
+    total_weighted_pace = 0.0
     n_trail = 0
     for a in runs:
         dist = a["distance"]
-        time = a["moving_time"]
         elev = a.get("total_elevation_gain", 0) or 0
-        flat_time = _flat_equivalent_time(time, dist, elev)
-        total_dist += dist
-        total_flat_time += flat_time
+        flat_t = _flat_equivalent_time(a["moving_time"], dist, elev)
+        pace_s_per_m = flat_t / dist
+        weight = dist ** 1.5
+        total_weight += weight
+        total_weighted_pace += pace_s_per_m * weight
         if a.get("sport_type", a.get("type", "")) == "TrailRun":
             n_trail += 1
 
-    pace = total_flat_time / total_dist
+    pace = total_weighted_pace / total_weight
     trail_note = f", {n_trail} trail normalizate" if n_trail else ""
     return (pace, f"medie {fmt(pace*1000)}/km din {len(runs)} alergări{trail_note}")
 

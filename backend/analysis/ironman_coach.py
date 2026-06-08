@@ -294,28 +294,31 @@ def analyze_run(activities: list) -> dict:
     long_runs  = [a for a in runs if a["distance"] >= 25000]
     marathon_approx = [a for a in runs if a["distance"] >= 35000]
 
-    # Flat-equivalent pace from ALL runs (weighted avg by distance)
-    total_dist = 0.0
-    total_time = 0.0
+    # Flat-equivalent pace — weighted by dist^1.5 so long quality runs dominate
+    # over short recovery jogs (a 20km run weighs ~7× more than a 3km jog)
+    total_weight = 0.0
+    total_weighted_pace = 0.0
     for a in runs:
         dist = a["distance"]
         elev = a.get("total_elevation_gain", 0) or 0
         flat_t = _flat_equivalent_time(a["moving_time"], dist, elev)
-        total_dist += dist
-        total_time += flat_t
-    avg_pace = total_time / total_dist  # s/m
+        w = dist ** 1.5
+        total_weight += w
+        total_weighted_pace += (flat_t / dist) * w
+    avg_pace = total_weighted_pace / total_weight  # s/m
 
-    # Long-run pace (flat-equiv, weighted)
+    # Long-run pace (flat-equiv, weighted by dist^1.5)
     long_pace = None
     if long_runs:
-        ld, lt = 0.0, 0.0
+        lw, lwp = 0.0, 0.0
         for a in long_runs:
             dist = a["distance"]
             elev = a.get("total_elevation_gain", 0) or 0
             ft = _flat_equivalent_time(a["moving_time"], dist, elev)
-            ld += dist
-            lt += ft
-        long_pace = lt / ld
+            w = dist ** 1.5
+            lw += w
+            lwp += (ft / dist) * w
+        long_pace = lwp / lw
 
     # Brick runs: runs within 90 min after a bike ride on the same day
     brick_pace = _estimate_brick_pace(activities)
