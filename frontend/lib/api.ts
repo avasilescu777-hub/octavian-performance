@@ -111,3 +111,89 @@ export const fetchActivities = (token?: string) =>
   apiGet<{ count: number; activities: object[] }>("/activities", token);
 
 export const getStravaLoginUrl = () => `${API_BASE}/auth/login`;
+
+// ─── Ironman Coach ────────────────────────────────────────────────────────────
+
+export interface CoachScenario {
+  swim: string; swim_pace: string;
+  T1: string;
+  bike: string; bike_speed: string;
+  T2: string;
+  run: string; run_pace: string;
+  total: string; total_s: number;
+}
+
+export interface CoachSportAnalysis {
+  available: boolean;
+  note?: string;
+  sessions_6m?: number;
+  sessions_12w?: number;
+  sessions_6w?: number;
+  // swim
+  total_distance_km?: number;
+  weekly_avg_km?: number;
+  longest_m?: number;
+  avg_pace_100m?: string;
+  css_pace_100m?: string;
+  recent_6w_pace_100m?: string;
+  trend?: string;
+  // bike
+  rides_6m?: number;
+  long_rides_4h_plus?: number;
+  very_long_rides_5h_plus?: number;
+  longest_ride_km?: number;
+  avg_speed_kmh_all?: number;
+  avg_speed_kmh_long_rides?: number;
+  ftp?: {
+    ftp_watts?: number;
+    target_im_watts_aggressive?: number;
+    target_im_watts_realistic?: number;
+    target_im_watts_conservative?: number;
+  };
+  aerobic_decoupling?: string;
+  // run
+  runs_6m?: number;
+  long_runs_25km_plus?: number;
+  marathon_distance_runs?: number;
+  total_run_km?: number;
+  weekly_avg_km?: number;
+  avg_pace_km?: string;
+  long_run_pace_km?: string;
+  brick_pace_km?: string;
+  vo2max_estimate?: number;
+  longest_run_km?: number;
+}
+
+export interface CoachLoad {
+  available: boolean;
+  current_ctl?: number;
+  current_atl?: number;
+  current_tsb?: number;
+  freshness?: string;
+  consistency_pct?: number;
+  active_days_12w?: number;
+  weekly_load_history?: number[];
+}
+
+export interface IronmanCoachAnalysis {
+  swim: CoachSportAnalysis;
+  bike: CoachSportAnalysis;
+  run: CoachSportAnalysis;
+  load: CoachLoad;
+  scenarios: {
+    aggressive?: CoachScenario;
+    realistic?: CoachScenario;
+    conservative?: CoachScenario;
+  };
+  probabilities: {
+    sub_12h_pct?: number;
+    sub_11h30_pct?: number;
+    sub_11h_pct?: number;
+  };
+  pacing: { tips: string[] };
+  race_date: string;
+  race_name: string;
+}
+
+export const fetchIronmanCoach = (token?: string) =>
+  apiGet<IronmanCoachAnalysis>("/analysis/ironman-coach", token);

@@ -1,23 +1,23 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getToken, getAthleteName, clearTokens, fetchPredictions, fetchFitness, fetchTrainingLoad, Predictions, FitnessMetrics, TrainingLoad } from "@/lib/api";
+import {
+  getToken, getAthleteName, clearTokens,
+  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach,
+  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis
+} from "@/lib/api";
 import NavBar from "@/components/NavBar";
 
 const RACE_DATE = new Date("2026-06-14T07:00:00");
-const IRONMAN = { swim: 3800, bike: 180000, run: 42195 };
 
-function formatTime(seconds: number): string {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return h > 0 ? `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}` : `${m}:${String(s).padStart(2, "0")}`;
-}
-
-function formatPace(secsPerKm: number): string {
-  const m = Math.floor(secsPerKm / 60);
-  const s = Math.round(secsPerKm % 60);
-  return `${m}:${String(s).padStart(2, "0")}/km`;
+function fmt(seconds: number): string {
+  const s = Math.round(Math.abs(seconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return h > 0
+    ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
+    : `${m}:${String(sec).padStart(2, "0")}`;
 }
 
 function useCountdown(target: Date) {
@@ -77,11 +77,58 @@ function MetricRow({ label, value, sub }: { label: string; value: string; sub?: 
   );
 }
 
+function ProbBar({ label, pct }: { label: string; pct: number }) {
+  const color = pct >= 60 ? "var(--accent)" : pct >= 30 ? "var(--bike)" : "var(--run)";
+  return (
+    <div className="mb-3">
+      <div className="flex justify-between text-xs mb-1">
+        <span style={{ color: "var(--text-muted)" }}>{label}</span>
+        <span style={{ color }} className="font-bold">{pct}%</span>
+      </div>
+      <div className="h-2 rounded-full" style={{ background: "var(--surface-2)" }}>
+        <div className="h-2 rounded-full transition-all duration-700"
+          style={{ width: `${pct}%`, background: color }} />
+      </div>
+    </div>
+  );
+}
+
+function ScenarioCard({
+  label, sublabel, data, color, highlight
+}: {
+  label: string; sublabel: string;
+  data?: { swim: string; swim_pace: string; bike: string; bike_speed: string; run: string; run_pace: string; total: string; T1: string; T2: string };
+  color: string; highlight?: boolean;
+}) {
+  if (!data) return null;
+  return (
+    <div className="rounded-xl p-5"
+      style={{
+        background: highlight ? "rgba(232,255,0,0.06)" : "var(--surface-2)",
+        border: `1px solid ${highlight ? "rgba(232,255,0,0.3)" : "var(--border)"}`,
+      }}>
+      <p className="text-xs font-bold tracking-widest uppercase mb-1" style={{ color }}>{label}</p>
+      <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>{sublabel}</p>
+      <p className="text-4xl font-black mb-4" style={{ color: highlight ? "var(--accent)" : "var(--text)" }}>
+        {data.total}
+      </p>
+      <div className="space-y-1.5 text-xs">
+        <div className="flex justify-between"><span style={{ color: "var(--swim)" }}>🏊 Înot</span><span style={{ color: "var(--text)" }}>{data.swim} <span style={{ color: "var(--text-muted)" }}>({data.swim_pace}/100m)</span></span></div>
+        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>T1</span><span style={{ color: "var(--text-muted)" }}>{data.T1}</span></div>
+        <div className="flex justify-between"><span style={{ color: "var(--bike)" }}>🚴 Ciclism</span><span style={{ color: "var(--text)" }}>{data.bike} <span style={{ color: "var(--text-muted)" }}>({data.bike_speed})</span></span></div>
+        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>T2</span><span style={{ color: "var(--text-muted)" }}>{data.T2}</span></div>
+        <div className="flex justify-between"><span style={{ color: "var(--run)" }}>🏃 Maraton</span><span style={{ color: "var(--text)" }}>{data.run} <span style={{ color: "var(--text-muted)" }}>({data.run_pace}/km)</span></span></div>
+      </div>
+    </div>
+  );
+}
+
 export default function IronmanToursPage() {
   const router = useRouter();
   const [predictions, setPredictions] = useState<Predictions | null>(null);
   const [fitness, setFitness] = useState<FitnessMetrics | null>(null);
   const [load, setLoad] = useState<TrainingLoad | null>(null);
+  const [coach, setCoach] = useState<IronmanCoachAnalysis | null>(null);
   const [loading, setLoading] = useState(true);
   const [athleteName, setAthleteName] = useState("");
   const countdown = useCountdown(RACE_DATE);
@@ -90,27 +137,18 @@ export default function IronmanToursPage() {
     const token = getToken();
     if (!token) { router.replace("/"); return; }
     setAthleteName(getAthleteName());
-    Promise.all([fetchPredictions(token), fetchFitness(token), fetchTrainingLoad(token)])
-      .then(([p, f, l]) => { setPredictions(p); setFitness(f); setLoad(l); })
+    Promise.all([
+      fetchPredictions(token),
+      fetchFitness(token),
+      fetchTrainingLoad(token),
+      fetchIronmanCoach(token),
+    ])
+      .then(([p, f, l, c]) => { setPredictions(p); setFitness(f); setLoad(l); setCoach(c); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [router]);
 
-  const ironman = predictions?.triathlon?.["Ironman"];
-  const swimPred = predictions?.swim?.["Ironman"];
-  const bikePred = predictions?.bike?.["Ironman"];
-  const runPred = predictions?.run?.["Marathon"];
-
-  const swimPacePerKm = swimPred ? (swimPred.seconds / IRONMAN.swim) * 1000 : null;
-  const bikeSpeedKmh = bikePred?.avg_speed_kmh ?? null;
-  const runPacePerKm = runPred ? (runPred.seconds / 42.195) : null;
-
-  // Conservative Ironman pacing: +8% swim, +5% bike, +10% run vs predicted
-  const swimConservative = swimPred ? Math.round(swimPred.seconds * 1.08) : null;
-  const bikeConservative = bikePred ? Math.round(bikePred.seconds * 1.05) : null;
-  const runConservative = runPred ? Math.round(runPred.seconds * 1.10) : null;
-  const totalConservative = (swimConservative && bikeConservative && runConservative)
-    ? swimConservative + bikeConservative + runConservative + 600 : null;
+  const hasCoach = coach && Object.keys(coach.scenarios || {}).length > 0;
 
   const tsbStatus = load?.current_tsb ?? null;
   const tsbLabel = tsbStatus !== null
@@ -168,31 +206,204 @@ export default function IronmanToursPage() {
 
         {!loading && (
           <>
-            {/* Forma actuală */}
-            {load && tsbLabel && (
-              <Section title="Forma ta acum" icon="📊" accent>
-                <div className="grid grid-cols-3 gap-4 mb-4">
-                  <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
-                    <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>FITNESS (CTL)</p>
-                    <p className="text-3xl font-black" style={{ color: "var(--accent)" }}>{load.current_ctl.toFixed(0)}</p>
-                  </div>
-                  <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
-                    <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>OBOSEALĂ (ATL)</p>
-                    <p className="text-3xl font-black" style={{ color: "var(--run)" }}>{load.current_atl.toFixed(0)}</p>
-                  </div>
-                  <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
-                    <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>FORMĂ (TSB)</p>
-                    <p className="text-3xl font-black" style={{ color: tsbLabel.color }}>{load.current_tsb.toFixed(0)}</p>
-                  </div>
+            {/* ── COACH: 3 SCENARII ─────────────────────────────────────────── */}
+            {hasCoach && (
+              <Section title="Analiză Coach — 3 Scenarii" icon="🎯" accent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <ScenarioCard
+                    label="Scenariu C — Conservative" sublabel="Zi dificilă · finish garantat"
+                    data={coach.scenarios.conservative} color="var(--run)"
+                  />
+                  <ScenarioCard
+                    label="Scenariu B — Realistic" sublabel="Cel mai probabil · forma actuală"
+                    data={coach.scenarios.realistic} color="var(--bike)" highlight
+                  />
+                  <ScenarioCard
+                    label="Scenariu A — Aggressive" sublabel="Zi perfectă · totul merge"
+                    data={coach.scenarios.aggressive} color="var(--accent)"
+                  />
                 </div>
-                <p className="text-sm font-semibold rounded-lg px-4 py-3"
-                  style={{ background: "var(--surface-2)", color: tsbLabel.color }}>
-                  {tsbLabel.text}
-                </p>
+
+                {/* Probabilități */}
+                {coach.probabilities && (
+                  <div className="rounded-lg p-4 mb-4" style={{ background: "var(--surface-2)" }}>
+                    <p className="text-xs font-bold tracking-widest uppercase mb-4"
+                      style={{ color: "var(--text-muted)" }}>Probabilități estimare</p>
+                    {coach.probabilities.sub_12h_pct !== undefined && (
+                      <ProbBar label="Sub 12 ore" pct={coach.probabilities.sub_12h_pct} />
+                    )}
+                    {coach.probabilities.sub_11h30_pct !== undefined && (
+                      <ProbBar label="Sub 11:30" pct={coach.probabilities.sub_11h30_pct} />
+                    )}
+                    {coach.probabilities.sub_11h_pct !== undefined && (
+                      <ProbBar label="Sub 11 ore" pct={coach.probabilities.sub_11h_pct} />
+                    )}
+                  </div>
+                )}
+
+                {/* Pacing tips */}
+                {coach.pacing?.tips?.length > 0 && (
+                  <div className="space-y-2">
+                    {coach.pacing.tips.map((tip, i) => (
+                      <div key={i} className="rounded-lg p-3 flex gap-2"
+                        style={{ background: "var(--surface-2)" }}>
+                        <span style={{ color: "var(--accent)" }}>›</span>
+                        <p className="text-sm leading-relaxed" style={{ color: "var(--text-muted)" }}>{tip}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </Section>
             )}
 
-            {/* Date antrenament folosite */}
+            {/* ── FORMA ACTUALĂ ──────────────────────────────────────────────── */}
+            {(load || coach?.load) && (
+              <Section title="Forma ta acum" icon="📊">
+                {(() => {
+                  const ctl = coach?.load?.current_ctl ?? load?.current_ctl;
+                  const atl = coach?.load?.current_atl ?? load?.current_atl;
+                  const tsb = coach?.load?.current_tsb ?? load?.current_tsb;
+                  const freshness = coach?.load?.freshness;
+                  const consistency = coach?.load?.consistency_pct;
+                  const label = tsb !== undefined && tsb !== null
+                    ? tsb > 10 ? { text: freshness || "Odihnit — formă excelentă", color: "#4ecdc4" }
+                      : tsb > -5 ? { text: freshness || "Formă bună", color: "#e8ff00" }
+                      : { text: freshness || "Obosit — priorizează odihna", color: "#ff6b35" }
+                    : null;
+                  return (
+                    <>
+                      <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
+                          <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>FITNESS (CTL)</p>
+                          <p className="text-3xl font-black" style={{ color: "var(--accent)" }}>{ctl?.toFixed(0) ?? "—"}</p>
+                        </div>
+                        <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
+                          <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>OBOSEALĂ (ATL)</p>
+                          <p className="text-3xl font-black" style={{ color: "var(--run)" }}>{atl?.toFixed(0) ?? "—"}</p>
+                        </div>
+                        <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
+                          <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>FORMĂ (TSB)</p>
+                          <p className="text-3xl font-black" style={{ color: label?.color ?? "var(--text)" }}>{tsb?.toFixed(0) ?? "—"}</p>
+                        </div>
+                      </div>
+                      {label && (
+                        <p className="text-sm font-semibold rounded-lg px-4 py-3"
+                          style={{ background: "var(--surface-2)", color: label.color }}>
+                          {label.text}
+                        </p>
+                      )}
+                      {consistency !== undefined && (
+                        <p className="text-xs mt-3 text-center" style={{ color: "var(--text-muted)" }}>
+                          Consistență ultimele 12 săptămâni: <strong style={{ color: "var(--text)" }}>{consistency}%</strong> din zile cu activitate
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
+              </Section>
+            )}
+
+            {/* ── ANALIZA PE SPORTURI ──────────────────────────────────────── */}
+            {coach && (
+              <Section title="Analiza Detaliată pe Discipline" icon="📈">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+                  {/* Swim */}
+                  <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--swim)" }}>
+                    <p className="text-sm font-bold mb-3" style={{ color: "var(--swim)" }}>🏊 ÎNOT</p>
+                    {coach.swim.available ? (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Sesiuni 6 luni</span><span style={{ color: "var(--text)" }}>{coach.swim.sessions_6m}</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Volum total</span><span style={{ color: "var(--text)" }}>{coach.swim.total_distance_km} km</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Pace medie</span><span style={{ color: "var(--text)" }}>{coach.swim.avg_pace_100m}/100m</span></div>
+                        {coach.swim.css_pace_100m && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>CSS estimat</span><span style={{ color: "var(--swim)" }}>{coach.swim.css_pace_100m}/100m</span></div>
+                        )}
+                        {coach.swim.recent_6w_pace_100m && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Ultimele 6 săpt</span><span style={{ color: "var(--text)" }}>{coach.swim.recent_6w_pace_100m}/100m</span></div>
+                        )}
+                        {coach.swim.trend && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Trend</span><span style={{ color: "var(--swim)" }}>{coach.swim.trend}</span></div>
+                        )}
+                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+                          <p className="text-xs font-bold" style={{ color: "var(--swim)" }}>Predicție Ironman:</p>
+                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                            Realist: <strong style={{ color: "var(--text)" }}>{coach.swim.realistic?.time}</strong> ({coach.swim.realistic?.pace_100m}/100m)
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{coach.swim.note || "Date insuficiente"}</p>
+                    )}
+                  </div>
+
+                  {/* Bike */}
+                  <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--bike)" }}>
+                    <p className="text-sm font-bold mb-3" style={{ color: "var(--bike)" }}>🚴 CICLISM</p>
+                    {coach.bike.available ? (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Ieșiri 6 luni</span><span style={{ color: "var(--text)" }}>{coach.bike.rides_6m}</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Ieșiri &gt;4h</span><span style={{ color: "var(--text)" }}>{coach.bike.long_rides_4h_plus}</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Viteză medie</span><span style={{ color: "var(--text)" }}>{coach.bike.avg_speed_kmh_all} km/h</span></div>
+                        {coach.bike.avg_speed_kmh_long_rides && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Viteză ieșiri lungi</span><span style={{ color: "var(--bike)" }}>{coach.bike.avg_speed_kmh_long_rides} km/h</span></div>
+                        )}
+                        {coach.bike.ftp?.ftp_watts && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>FTP estimat</span><span style={{ color: "var(--bike)" }}>{coach.bike.ftp.ftp_watts}W</span></div>
+                        )}
+                        {coach.bike.ftp?.target_im_watts_realistic && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Putere IM realistă</span><span style={{ color: "var(--bike)" }}>{coach.bike.ftp.target_im_watts_realistic}W</span></div>
+                        )}
+                        {coach.bike.aerobic_decoupling && (
+                          <p className="text-xs mt-2 italic leading-tight" style={{ color: "var(--text-muted)" }}>{coach.bike.aerobic_decoupling}</p>
+                        )}
+                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+                          <p className="text-xs font-bold" style={{ color: "var(--bike)" }}>Predicție Ironman:</p>
+                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                            Realist: <strong style={{ color: "var(--text)" }}>{coach.bike.realistic?.time}</strong> ({coach.bike.realistic?.avg_speed_kmh} km/h)
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{coach.bike.note || "Date insuficiente"}</p>
+                    )}
+                  </div>
+
+                  {/* Run */}
+                  <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--run)" }}>
+                    <p className="text-sm font-bold mb-3" style={{ color: "var(--run)" }}>🏃 ALERGARE</p>
+                    {coach.run.available ? (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Alergări 6 luni</span><span style={{ color: "var(--text)" }}>{coach.run.runs_6m}</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Lungi &gt;25km</span><span style={{ color: "var(--text)" }}>{coach.run.long_runs_25km_plus}</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Volum total</span><span style={{ color: "var(--text)" }}>{coach.run.total_run_km} km</span></div>
+                        <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Pace medie flat</span><span style={{ color: "var(--text)" }}>{coach.run.avg_pace_km}/km</span></div>
+                        {coach.run.long_run_pace_km && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Pace ieșiri lungi</span><span style={{ color: "var(--run)" }}>{coach.run.long_run_pace_km}/km</span></div>
+                        )}
+                        {coach.run.brick_pace_km && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Pace brick</span><span style={{ color: "var(--accent)" }}>{coach.run.brick_pace_km}/km</span></div>
+                        )}
+                        {coach.run.vo2max_estimate && (
+                          <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>VO2max estimat</span><span style={{ color: "var(--text)" }}>{coach.run.vo2max_estimate} ml/kg/min</span></div>
+                        )}
+                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
+                          <p className="text-xs font-bold" style={{ color: "var(--run)" }}>Predicție maraton IM:</p>
+                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
+                            Realist: <strong style={{ color: "var(--text)" }}>{coach.run.realistic?.time}</strong> ({coach.run.realistic?.pace_per_km}/km)
+                          </p>
+                          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Factor oboseală: +18%</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{coach.run.note || "Date insuficiente"}</p>
+                    )}
+                  </div>
+                </div>
+              </Section>
+            )}
+
+            {/* ── DATE STRAVA ANALIZATE ──────────────────────────────────────── */}
             {predictions?.activity_summary && (
               <Section title="Date Strava analizate" icon="📂">
                 <div className="grid grid-cols-3 gap-3 mb-3">
@@ -209,99 +420,38 @@ export default function IronmanToursPage() {
                   ))}
                 </div>
                 <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-                  Total {predictions.activity_summary.total_activities} activități analizate din Strava
+                  Total {predictions.activity_summary.total_activities} activități analizate · ultimele 6 luni
                 </p>
               </Section>
             )}
 
-            {/* Predicție cursă */}
-            <Section title="Predicție Ironman Tours" icon="🏁">
-              {!ironman ? (
-                <p style={{ color: "var(--text-muted)" }}>
-                  Adaugă activități din cele 3 discipline pe Strava pentru predicție completă.
-                </p>
-              ) : (
-                <>
-                  {/* Timp total */}
-                  <div className="rounded-xl p-5 mb-4 text-center"
-                    style={{ background: "var(--surface-2)", border: "1px solid rgba(232,255,0,0.2)" }}>
-                    <p className="text-xs font-semibold tracking-widest uppercase mb-2"
-                      style={{ color: "var(--text-muted)" }}>TIMP TOTAL ESTIMAT</p>
-                    <p className="text-6xl font-black" style={{ color: "var(--accent)" }}>{ironman.total}</p>
-                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
-                      bazat pe antrenamentele tale reale · factor oboseală maraton +{ironman.run_fatigue_pct ?? 18}%
-                    </p>
-                  </div>
-
-                  {/* Split-uri */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
-                    <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--swim)" }}>
-                      <p className="text-xs mb-1" style={{ color: "var(--swim)" }}>🏊 ÎNOT 3.8km</p>
-                      <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{ironman.swim}</p>
-                      <p className="text-xs mt-1" style={{ color: "var(--swim)" }}>{ironman.swim_pace_100m}/100m</p>
-                      {ironman.swim_method && (
-                        <p className="text-xs mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>
-                          {ironman.swim_method} · +6% apă liberă
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--bike)" }}>
-                      <p className="text-xs mb-1" style={{ color: "var(--bike)" }}>🚴 CICLISM 180km</p>
-                      <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{ironman.bike}</p>
-                      <p className="text-xs mt-1" style={{ color: "var(--bike)" }}>{ironman.bike_speed_kmh} km/h</p>
-                      {ironman.bike_method && (
-                        <p className="text-xs mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>
-                          {ironman.bike_method}
-                        </p>
-                      )}
-                    </div>
-                    <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--run)" }}>
-                      <p className="text-xs mb-1" style={{ color: "var(--run)" }}>🏃 MARATON 42.2km</p>
-                      <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{ironman.run}</p>
-                      <p className="text-xs mt-1" style={{ color: "var(--run)" }}>{ironman.run_pace_km}/km</p>
-                      {ironman.run_method && (
-                        <p className="text-xs mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>
-                          {ironman.run_method}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-                    + {ironman.transitions} tranziții (T1 + T2)
-                  </p>
-                </>
-              )}
-            </Section>
-
-            {/* Strategie de pacing */}
+            {/* ── STRATEGIE PACING ──────────────────────────────────────────── */}
             <Section title="Strategie de Pacing" icon="⚡">
               <div className="space-y-0">
-                {swimPred && swimConservative && (
-                  <MetricRow
-                    label="🏊 Înot — pace target"
-                    value={formatTime(Math.round(swimConservative / IRONMAN.swim * 100)) + "/100m"}
-                    sub={`Total: ${formatTime(swimConservative)} • Ritmul tău aerob, nu sprint`}
-                  />
-                )}
-                {bikePred && bikeConservative && bikeSpeedKmh && (
-                  <MetricRow
-                    label="🚴 Ciclism — viteză target"
-                    value={`${Math.round(bikeSpeedKmh * 0.95)} km/h`}
-                    sub={`Total: ${formatTime(bikeConservative)} • ~${fitness?.ftp_watts ? Math.round(fitness.ftp_watts * 0.72) + "W (72% FTP)" : "puls aerob stabil"}`}
-                  />
-                )}
-                {runPred && runConservative && runPacePerKm && (
-                  <MetricRow
-                    label="🏃 Maraton — pace target"
-                    value={formatPace(runPacePerKm * 1.10)}
-                    sub={`Total: ${formatTime(runConservative)} • Primii 21km la pace stabil, ultimii 21km crești`}
-                  />
+                {coach?.scenarios?.realistic && (
+                  <>
+                    <MetricRow
+                      label="🏊 Înot — pace target"
+                      value={`${coach.scenarios.realistic.swim_pace}/100m`}
+                      sub={`Total: ${coach.scenarios.realistic.swim} · ritm aerob, nu sprint`}
+                    />
+                    <MetricRow
+                      label="🚴 Ciclism — viteză target"
+                      value={coach.scenarios.realistic.bike_speed}
+                      sub={`Total: ${coach.scenarios.realistic.bike} · ${coach.bike?.ftp?.target_im_watts_realistic ? `~${coach.bike.ftp.target_im_watts_realistic}W (73% FTP)` : "puls aerob stabil"}`}
+                    />
+                    <MetricRow
+                      label="🏃 Maraton — pace target"
+                      value={`${coach.scenarios.realistic.run_pace}/km`}
+                      sub={`Total: ${coach.scenarios.realistic.run} · primii 10km conservator`}
+                    />
+                  </>
                 )}
                 {fitness?.ftp_watts && (
                   <MetricRow
-                    label="FTP tău estimat"
+                    label="FTP (power meter)"
                     value={`${fitness.ftp_watts}W`}
-                    sub="Pedalează la max 75% FTP pe ciclism pentru a păstra energie la alergare"
+                    sub="Max 75% FTP pe ciclism pentru energie la alergare"
                   />
                 )}
                 {fitness?.vo2max && (
@@ -314,7 +464,7 @@ export default function IronmanToursPage() {
               </div>
             </Section>
 
-            {/* Sfaturi zilele rămase */}
+            {/* ── ZILELE RĂMASE ──────────────────────────────────────────────── */}
             <Section title="Zilele Rămase — Ce faci acum" icon="📅">
               <div className="space-y-3">
                 <Tip color="var(--accent)" title="Azi — Luni 9 iunie"
@@ -330,7 +480,7 @@ export default function IronmanToursPage() {
               </div>
             </Section>
 
-            {/* Ziua cursei */}
+            {/* ── ZIUA CURSEI ────────────────────────────────────────────────── */}
             <Section title="Ziua Cursei — Strategie" icon="🎯" accent>
               <div className="space-y-3">
                 <Tip color="var(--text-muted)" title="Dimineața (−2h față de start)"
@@ -346,7 +496,7 @@ export default function IronmanToursPage() {
               </div>
             </Section>
 
-            {/* Nutriție */}
+            {/* ── NUTRIȚIE ───────────────────────────────────────────────────── */}
             <Section title="Plan de Nutriție" icon="🍌">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {[
@@ -377,33 +527,26 @@ export default function IronmanToursPage() {
               </div>
             </Section>
 
-            {/* Obiective */}
+            {/* ── OBIECTIVE ──────────────────────────────────────────────────── */}
             <Section title="Obiective de Timp" icon="🏆">
-              {ironman ? (
+              {hasCoach ? (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)", border: "1px solid rgba(232,255,0,0.3)" }}>
-                    <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>OBIECTIV A</p>
-                    <p className="text-2xl font-black" style={{ color: "var(--accent)" }}>{ironman.total}</p>
-                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Zi perfectă</p>
+                    <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>OBIECTIV A — Zi perfectă</p>
+                    <p className="text-2xl font-black" style={{ color: "var(--accent)" }}>{coach.scenarios.aggressive?.total ?? "—"}</p>
                   </div>
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
-                    <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>OBIECTIV B</p>
-                    <p className="text-2xl font-black" style={{ color: "var(--bike)" }}>
-                      {totalConservative ? formatTime(totalConservative) : "—"}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Pacing corect</p>
+                    <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>OBIECTIV B — Realist</p>
+                    <p className="text-2xl font-black" style={{ color: "var(--bike)" }}>{coach.scenarios.realistic?.total ?? "—"}</p>
                   </div>
                   <div className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
-                    <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>OBIECTIV C</p>
-                    <p className="text-2xl font-black" style={{ color: "var(--run)" }}>
-                      {totalConservative ? formatTime(Math.round(totalConservative * 1.08)) : "—"}
-                    </p>
-                    <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>Zi dificilă → finish</p>
+                    <p className="text-xs mb-2" style={{ color: "var(--text-muted)" }}>OBIECTIV C — Conservative</p>
+                    <p className="text-2xl font-black" style={{ color: "var(--run)" }}>{coach.scenarios.conservative?.total ?? "—"}</p>
                   </div>
                 </div>
               ) : (
                 <p style={{ color: "var(--text-muted)" }}>
-                  Conectează activități Strava din înot, ciclism și alergare pentru a vedea obiective personalizate.
+                  Conectează activități Strava din înot, ciclism și alergare pentru obiective personalizate.
                 </p>
               )}
               <p className="text-xs mt-4 text-center" style={{ color: "var(--text-muted)" }}>

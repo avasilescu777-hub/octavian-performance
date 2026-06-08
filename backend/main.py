@@ -9,6 +9,7 @@ from analysis.training_load import compute_training_load
 from analysis.predictions import predict_races
 from analysis.zones import compute_zones
 from analysis.fitness import estimate_vo2max, estimate_ftp, estimate_css
+from analysis.ironman_coach import full_ironman_analysis
 
 load_dotenv()
 
@@ -167,6 +168,12 @@ async def get_predictions(access_token: str = Query(...)):
     activities = await fetch_all_activities(access_token, months=6)
     predictions = predict_races(activities)
     return predictions
+
+
+@app.get("/analysis/ironman-coach")
+async def get_ironman_coach(access_token: str = Query(...)):
+    activities = await fetch_all_activities(access_token, months=6)
+    return full_ironman_analysis(activities)
 
 
 @app.get("/athlete")
