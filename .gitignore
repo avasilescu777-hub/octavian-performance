@@ -10,5 +10,10 @@ frontend/.next/
 frontend/node_modules/
 frontend/.env.local
 
+# Root node_modules (Railway CLI etc)
+node_modules/
+package.json
+package-lock.json
+
 # OS
 .DS_Store
