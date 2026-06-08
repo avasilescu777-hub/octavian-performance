@@ -192,6 +192,28 @@ export default function IronmanToursPage() {
               </Section>
             )}
 
+            {/* Date antrenament folosite */}
+            {predictions?.activity_summary && (
+              <Section title="Date Strava analizate" icon="📂">
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {[
+                    { label: "🏊 Sesiuni înot", val: predictions.activity_summary.swims, sub: `Cel mai lung: ${predictions.activity_summary.longest_swim_km} km` },
+                    { label: "🚴 Ieșiri ciclism", val: predictions.activity_summary.rides, sub: `Cea mai lungă: ${predictions.activity_summary.longest_ride_km} km` },
+                    { label: "🏃 Alergări", val: predictions.activity_summary.runs, sub: `Cea mai lungă: ${predictions.activity_summary.longest_run_km} km` },
+                  ].map(({ label, val, sub }) => (
+                    <div key={label} className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
+                      <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>{label}</p>
+                      <p className="text-2xl font-black" style={{ color: "var(--accent)" }}>{val}</p>
+                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{sub}</p>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
+                  Total {predictions.activity_summary.total_activities} activități analizate din Strava
+                </p>
+              </Section>
+            )}
+
             {/* Predicție cursă */}
             <Section title="Predicție Ironman Tours" icon="🏁">
               {!ironman ? (
@@ -200,39 +222,48 @@ export default function IronmanToursPage() {
                 </p>
               ) : (
                 <>
-                  <div className="flex items-center justify-between mb-6 rounded-xl p-5"
-                    style={{ background: "var(--surface-2)" }}>
-                    <div>
-                      <p className="text-xs font-semibold tracking-widest uppercase mb-1"
-                        style={{ color: "var(--text-muted)" }}>TIMP TOTAL ESTIMAT</p>
-                      <p className="text-5xl font-black" style={{ color: "var(--accent)" }}>{ironman.total}</p>
-                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>bazat pe cel mai bun efort Strava</p>
-                    </div>
-                    {totalConservative && (
-                      <div className="text-right">
-                        <p className="text-xs font-semibold tracking-widest uppercase mb-1"
-                          style={{ color: "var(--text-muted)" }}>TARGET REALIST</p>
-                        <p className="text-3xl font-black" style={{ color: "var(--bike)" }}>{formatTime(totalConservative)}</p>
-                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>cu pacing conservativ</p>
-                      </div>
-                    )}
+                  {/* Timp total */}
+                  <div className="rounded-xl p-5 mb-4 text-center"
+                    style={{ background: "var(--surface-2)", border: "1px solid rgba(232,255,0,0.2)" }}>
+                    <p className="text-xs font-semibold tracking-widest uppercase mb-2"
+                      style={{ color: "var(--text-muted)" }}>TIMP TOTAL ESTIMAT</p>
+                    <p className="text-6xl font-black" style={{ color: "var(--accent)" }}>{ironman.total}</p>
+                    <p className="text-xs mt-2" style={{ color: "var(--text-muted)" }}>
+                      bazat pe antrenamentele tale reale · factor oboseală maraton +{ironman.run_fatigue_pct ?? 18}%
+                    </p>
                   </div>
 
+                  {/* Split-uri */}
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--swim)" }}>
-                      <p className="text-xs mb-2" style={{ color: "var(--swim)" }}>🏊 ÎNOT 3.8km</p>
+                      <p className="text-xs mb-1" style={{ color: "var(--swim)" }}>🏊 ÎNOT 3.8km</p>
                       <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{ironman.swim}</p>
-                      {swimPred && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{swimPred.pace_per_100m}/100m</p>}
+                      <p className="text-xs mt-1" style={{ color: "var(--swim)" }}>{ironman.swim_pace_100m}/100m</p>
+                      {ironman.swim_method && (
+                        <p className="text-xs mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>
+                          {ironman.swim_method} · +6% apă liberă
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--bike)" }}>
-                      <p className="text-xs mb-2" style={{ color: "var(--bike)" }}>🚴 CICLISM 180km</p>
+                      <p className="text-xs mb-1" style={{ color: "var(--bike)" }}>🚴 CICLISM 180km</p>
                       <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{ironman.bike}</p>
-                      {bikePred && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{bikePred.avg_speed_kmh} km/h</p>}
+                      <p className="text-xs mt-1" style={{ color: "var(--bike)" }}>{ironman.bike_speed_kmh} km/h</p>
+                      {ironman.bike_method && (
+                        <p className="text-xs mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>
+                          {ironman.bike_method}
+                        </p>
+                      )}
                     </div>
                     <div className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: "3px solid var(--run)" }}>
-                      <p className="text-xs mb-2" style={{ color: "var(--run)" }}>🏃 MARATON 42.2km</p>
+                      <p className="text-xs mb-1" style={{ color: "var(--run)" }}>🏃 MARATON 42.2km</p>
                       <p className="text-2xl font-black" style={{ color: "var(--text)" }}>{ironman.run}</p>
-                      {runPred && <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{runPred.pace_per_km}/km</p>}
+                      <p className="text-xs mt-1" style={{ color: "var(--run)" }}>{ironman.run_pace_km}/km</p>
+                      {ironman.run_method && (
+                        <p className="text-xs mt-1 leading-tight" style={{ color: "var(--text-muted)" }}>
+                          {ironman.run_method}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>

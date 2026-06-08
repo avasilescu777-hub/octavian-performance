@@ -68,6 +68,23 @@ export interface TriathlonPrediction {
   bike: string;
   run: string;
   transitions: string;
+  swim_pace_100m?: string;
+  bike_speed_kmh?: number;
+  run_pace_km?: string;
+  swim_method?: string;
+  bike_method?: string;
+  run_method?: string;
+  run_fatigue_pct?: number;
+}
+
+export interface ActivitySummary {
+  total_activities: number;
+  runs: number;
+  rides: number;
+  swims: number;
+  longest_run_km: number;
+  longest_ride_km: number;
+  longest_swim_km: number;
 }
 
 export interface Predictions {
@@ -75,6 +92,7 @@ export interface Predictions {
   triathlon: Record<string, TriathlonPrediction>;
   swim: Record<string, { time: string; pace_per_100m: string; seconds: number }>;
   bike: Record<string, { time: string; avg_speed_kmh: number; seconds: number }>;
+  activity_summary?: ActivitySummary;
 }
 
 export const fetchTrainingLoad = (token?: string) =>
