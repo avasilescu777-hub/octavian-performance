@@ -158,38 +158,84 @@ def predict_bike(activities: list, dist_m: float) -> Optional[dict]:
 
 # ─── RUN ─────────────────────────────────────────────────────────────────────
 
+# Grade adjustment: each 100m of elevation gain per km adds ~10% to time.
+# Dividing actual time by this factor gives the flat-equivalent time.
+GRADE_FACTOR_PER_100M_PER_KM = 0.10
+
+# Flat threshold: runs with < this many m/km gain are considered "flat"
+FLAT_GAIN_PER_KM = 8.0
+
+
+def _flat_equivalent_time(moving_time: float, distance: float, elevation_gain: float) -> float:
+    """Return the flat-equivalent moving time, correcting for elevation gain."""
+    if not elevation_gain or elevation_gain <= 0 or not distance:
+        return moving_time
+    gain_per_km = (elevation_gain / distance) * 1000
+    factor = 1.0 + (gain_per_km / 100.0) * GRADE_FACTOR_PER_100M_PER_KM
+    return moving_time / factor
+
+
 def _run_pace_from_activities(activities: list) -> Optional[tuple[float, str]]:
-    """Returns (seconds_per_meter, method_description)."""
+    """
+    Returns (flat_equivalent_seconds_per_meter, method_description).
+    Trail runs are normalized to flat-equivalent pace using elevation gain.
+    Prefers flat road runs; falls back to elevation-adjusted trail runs.
+    """
     runs = [a for a in activities
             if a.get("sport_type", a.get("type", "")) in ("Run", "TrailRun")
             and a.get("distance", 0) > 0 and a.get("moving_time", 0) > 0]
     if not runs:
         return None
 
-    # Long runs (>15km) — best representative of marathon fitness
-    long_runs = [a for a in runs if a.get("distance", 0) >= 15000]
-    if long_runs:
-        # Use weighted average pace from long runs (distance-weighted)
-        total_dist = sum(a["distance"] for a in long_runs)
-        total_time = sum(a["moving_time"] for a in long_runs)
-        pace = total_time / total_dist  # s/m
-        km_pace = pace * 1000
-        return (pace, f"medie {fmt(km_pace)}/km din {len(long_runs)} alergări lungi (>{15}km)")
+    # Annotate each run with flat-equivalent pace
+    annotated = []
+    for a in runs:
+        dist = a.get("distance", 0)
+        time = a.get("moving_time", 0)
+        elev = a.get("total_elevation_gain", 0) or 0
+        gain_per_km = (elev / dist) * 1000 if dist else 0
+        flat_time = _flat_equivalent_time(time, dist, elev)
+        is_flat = gain_per_km < FLAT_GAIN_PER_KM
+        is_trail = a.get("sport_type", a.get("type", "")) == "TrailRun"
+        annotated.append({
+            "dist": dist, "time": time, "elev": elev,
+            "flat_time": flat_time, "gain_per_km": gain_per_km,
+            "is_flat": is_flat, "is_trail": is_trail,
+        })
 
-    # Medium runs (>8km)
-    medium_runs = [a for a in runs if a.get("distance", 0) >= 8000]
-    if medium_runs:
-        total_dist = sum(a["distance"] for a in medium_runs)
-        total_time = sum(a["moving_time"] for a in medium_runs)
+    # Priority 1: flat road runs (gain < 8m/km), distance > 15km
+    flat_long = [a for a in annotated if a["is_flat"] and not a["is_trail"] and a["dist"] >= 15000]
+    if flat_long:
+        total_dist = sum(a["dist"] for a in flat_long)
+        total_time = sum(a["flat_time"] for a in flat_long)
         pace = total_time / total_dist
-        km_pace = pace * 1000
-        return (pace, f"medie {fmt(km_pace)}/km din {len(medium_runs)} alergări (>8km)")
+        n_trail = sum(1 for a in flat_long if a["is_trail"])
+        return (pace, f"medie {fmt(pace*1000)}/km din {len(flat_long)} alergări flat (>15km)")
 
-    # Best effort with Riegel
-    best = min(runs, key=lambda x: x["moving_time"] / x["distance"])
-    pace = best["moving_time"] / best["distance"]
-    km_pace = pace * 1000
-    return (pace, f"Riegel din cel mai bun efort ({fmt(km_pace)}/km)")
+    # Priority 2: all long runs (>15km), normalized for elevation
+    long_runs = [a for a in annotated if a["dist"] >= 15000]
+    if long_runs:
+        total_dist = sum(a["dist"] for a in long_runs)
+        total_time = sum(a["flat_time"] for a in long_runs)
+        pace = total_time / total_dist
+        n_trail = sum(1 for a in long_runs if a["is_trail"])
+        adj_note = f", {n_trail} trail normalizate" if n_trail else ""
+        return (pace, f"medie {fmt(pace*1000)}/km din {len(long_runs)} alergări lungi{adj_note}")
+
+    # Priority 3: medium runs (>8km), normalized
+    medium_runs = [a for a in annotated if a["dist"] >= 8000]
+    if medium_runs:
+        total_dist = sum(a["dist"] for a in medium_runs)
+        total_time = sum(a["flat_time"] for a in medium_runs)
+        pace = total_time / total_dist
+        n_trail = sum(1 for a in medium_runs if a["is_trail"])
+        adj_note = f", {n_trail} trail normalizate" if n_trail else ""
+        return (pace, f"medie {fmt(pace*1000)}/km din {len(medium_runs)} alergări >8km{adj_note}")
+
+    # Priority 4: best flat-equivalent effort (Riegel)
+    best = min(annotated, key=lambda x: x["flat_time"] / x["dist"])
+    pace = best["flat_time"] / best["dist"]
+    return (pace, f"Riegel din cel mai bun efort flat-echivalent ({fmt(pace*1000)}/km)")
 
 
 def predict_run(activities: list, dist_m: float, ironman_fatigue: float = 1.0) -> Optional[dict]:
