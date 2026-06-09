@@ -41,8 +41,15 @@ function DashboardContent() {
         .catch(() => {});
     } else {
       const stored = getToken();
+      const storedRefresh = typeof window !== "undefined" ? localStorage.getItem("strava_refresh_token") : null;
       setToken(stored || "");
       setAthleteName(getAthleteName());
+      // Push stored token to backend on every load so any device benefits
+      if (stored && storedRefresh) {
+        const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        fetch(`${API_BASE}/auth/save-token?access_token=${stored}&refresh_token=${storedRefresh}`)
+          .catch(() => {});
+      }
     }
   }, [searchParams, router]);
 

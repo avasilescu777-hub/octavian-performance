@@ -126,6 +126,19 @@ def auth_status():
     return {"token_available": has_stored_token()}
 
 
+@app.get("/auth/peek")
+def auth_peek():
+    """Temporary: returns stored refresh token so it can be set as env var."""
+    import time as _time
+    from analysis.token_cache import _cache
+    return {
+        "refresh_token": _cache.get("refresh_token") or os.getenv("STRAVA_STORED_REFRESH", ""),
+        "has_token": has_stored_token(),
+        "expires_at": _cache.get("expires_at", 0),
+        "expires_in_min": max(0, int((_cache.get("expires_at", 0) - _time.time()) / 60)),
+    }
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 async def fetch_all_activities(access_token: str, per_page: int = 100, months: int = 0) -> list:

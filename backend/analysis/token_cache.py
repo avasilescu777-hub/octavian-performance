@@ -42,7 +42,7 @@ _load_file()
 def store_tokens(access_token: str, refresh_token: str, expires_at: int = 0):
     _cache["access_token"] = access_token
     _cache["refresh_token"] = refresh_token
-    _cache["expires_at"] = expires_at or int(time.time()) + 21600
+    _cache["expires_at"] = expires_at if expires_at > 0 else 0
     _save_file()
 
 
