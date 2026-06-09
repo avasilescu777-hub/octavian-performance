@@ -198,9 +198,6 @@ def analyze_bike(activities: list) -> dict:
     avg_speed_all  = _weighted_avg_speed(outdoor_rides)
     avg_speed_long = _weighted_avg_speed(long_rides) if long_rides else None
 
-    # Best effort (highest avg speed ride > 2h as proxy for ability)
-    power_rides = [a for a in outdoor_rides if a.get("average_watts") and a.get("moving_time", 0) >= 1200]
-
     # Aerobic decoupling proxy: HR drift in last 6 weeks
     recent_long = _activities_in_window(long_rides, 6)
     decoupling_note = _hr_decoupling_note(recent_long)
@@ -209,11 +206,6 @@ def analyze_bike(activities: list) -> dict:
     def ironman_bike(speed_mps: float) -> dict:
         t = IRONMAN_BIKE_M / speed_mps
         return {"seconds": round(t), "time": fmt(t), "avg_speed_kmh": round(speed_mps * 3.6, 1)}
-
-    # FTP-based speed estimate (power→speed relationship is non-linear; use rides as calibration)
-    ftp_speed = None
-    if ftp and avg_speed_all:
-        ftp_speed = avg_speed_all  # ftp is mainly used for zone guidance
 
     # Use long-ride speed as primary predictor; fall back to all-ride avg
     ref_speed = avg_speed_long if avg_speed_long else avg_speed_all
@@ -284,8 +276,9 @@ def _hr_decoupling_note(rides: list) -> str:
 # ─── run analysis ─────────────────────────────────────────────────────────────
 
 def analyze_run(activities: list) -> dict:
+    # TrailRun excluded — Ironman marathon is flat road
     runs = [a for a in activities
-            if a.get("sport_type", a.get("type", "")) in ("Run", "TrailRun")
+            if a.get("sport_type", a.get("type", "")) == "Run"
             and a.get("distance", 0) > 0 and a.get("moving_time", 0) > 0]
 
     if not runs:
@@ -369,7 +362,7 @@ def _estimate_brick_pace(activities: list) -> Optional[str]:
              if a.get("sport_type", a.get("type", "")) in ("Ride",)
              and a.get("distance", 0) > 0]
     runs  = [a for a in activities
-             if a.get("sport_type", a.get("type", "")) in ("Run", "TrailRun")
+             if a.get("sport_type", a.get("type", "")) == "Run"
              and a.get("distance", 0) > 0]
 
     brick_paces = []

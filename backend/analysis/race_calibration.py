@@ -94,7 +94,7 @@ def _find_race_activities(activities: list, race_dt: datetime) -> dict:
 
     swims = [a for a in day_acts if _sport(a) in ("swim",) and a.get("distance", 0) > 0]
     rides = [a for a in day_acts if _sport(a) in ("ride",) and a.get("distance", 0) > 0]
-    runs  = [a for a in day_acts if _sport(a) in ("run", "trailrun") and a.get("distance", 0) > 0]
+    runs  = [a for a in day_acts if _sport(a) == "run" and a.get("distance", 0) > 0]
 
     # Also check for multi-sport triathlon activity
     triathlons = [a for a in day_acts if _sport(a) in ("triathlon",)]

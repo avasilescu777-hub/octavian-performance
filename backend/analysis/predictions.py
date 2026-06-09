@@ -155,34 +155,27 @@ def _flat_equivalent_time(moving_time: float, distance: float, elevation_gain: f
 def _run_pace_from_activities(activities: list) -> Optional[tuple[float, str]]:
     """
     Returns (flat_equivalent_seconds_per_meter, method_description).
-    ALL runs are included — trail runs normalized to flat-equivalent using elevation gain.
-    Weighted average by distance.
+    Only road runs (Run) — TrailRun excluded (Ironman marathon is flat road).
+    Weighted by dist^1.5 so long quality runs dominate short recovery jogs.
     """
     runs = [a for a in activities
-            if a.get("sport_type", a.get("type", "")) in ("Run", "TrailRun")
+            if a.get("sport_type", a.get("type", "")) == "Run"
             and a.get("distance", 0) > 0 and a.get("moving_time", 0) > 0]
     if not runs:
         return None
 
-    # Weight by dist^1.5: a 20km run weighs ~7× more than a 3km recovery jog
-    # (vs 6× with linear weighting), naturally de-emphasizing easy short runs.
     total_weight = 0.0
     total_weighted_pace = 0.0
-    n_trail = 0
     for a in runs:
         dist = a["distance"]
-        elev = a.get("total_elevation_gain", 0) or 0
-        flat_t = _flat_equivalent_time(a["moving_time"], dist, elev)
-        pace_s_per_m = flat_t / dist
+        time = a["moving_time"]
+        pace_s_per_m = time / dist
         weight = dist ** 1.5
         total_weight += weight
         total_weighted_pace += pace_s_per_m * weight
-        if a.get("sport_type", a.get("type", "")) == "TrailRun":
-            n_trail += 1
 
     pace = total_weighted_pace / total_weight
-    trail_note = f", {n_trail} trail normalizate" if n_trail else ""
-    return (pace, f"medie {fmt(pace*1000)}/km din {len(runs)} alergări{trail_note}")
+    return (pace, f"medie {fmt(pace*1000)}/km din {len(runs)} alergări șosea")
 
 
 def predict_run(activities: list, dist_m: float, ironman_fatigue: float = 1.0) -> Optional[dict]:
@@ -207,7 +200,7 @@ def predict_run(activities: list, dist_m: float, ironman_fatigue: float = 1.0) -
 
 def predict_run_times(activities: list) -> dict:
     runs = [a for a in activities
-            if a.get("sport_type", a.get("type", "")) in ("Run", "TrailRun")
+            if a.get("sport_type", a.get("type", "")) == "Run"
             and a.get("distance", 0) >= 1000 and a.get("moving_time", 0) > 0]
     if not runs:
         return {}
