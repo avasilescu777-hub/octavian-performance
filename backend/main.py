@@ -10,6 +10,7 @@ from analysis.predictions import predict_races
 from analysis.zones import compute_zones
 from analysis.fitness import estimate_vo2max, estimate_ftp, estimate_css
 from analysis.ironman_coach import full_ironman_analysis
+from analysis.race_calibration import calibrate_from_race
 
 load_dotenv()
 
@@ -174,6 +175,16 @@ async def get_predictions(access_token: str = Query(...)):
 async def get_ironman_coach(access_token: str = Query(...)):
     activities = await fetch_all_activities(access_token, months=6)
     return full_ironman_analysis(activities)
+
+
+@app.get("/analysis/race-calibration")
+async def get_race_calibration(
+    access_token: str = Query(...),
+    race_date: str = Query("2025-09-06"),
+):
+    # Need full history: pre-race training + race day + current period
+    activities = await fetch_all_activities(access_token)
+    return calibrate_from_race(activities, race_date)
 
 
 @app.get("/athlete")

@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getToken, getAthleteName, clearTokens,
-  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach,
-  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis
+  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach, fetchRaceCalibration,
+  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis, RaceCalibration
 } from "@/lib/api";
 import NavBar from "@/components/NavBar";
 
@@ -129,6 +129,7 @@ export default function IronmanToursPage() {
   const [fitness, setFitness] = useState<FitnessMetrics | null>(null);
   const [load, setLoad] = useState<TrainingLoad | null>(null);
   const [coach, setCoach] = useState<IronmanCoachAnalysis | null>(null);
+  const [calib, setCalib] = useState<RaceCalibration | null>(null);
   const [loading, setLoading] = useState(true);
   const [athleteName, setAthleteName] = useState("");
   const countdown = useCountdown(RACE_DATE);
@@ -142,11 +143,13 @@ export default function IronmanToursPage() {
       fetchFitness(token),
       fetchTrainingLoad(token),
       fetchIronmanCoach(token),
-    ]).then(([p, f, l, c]) => {
+      fetchRaceCalibration(token),
+    ]).then(([p, f, l, c, rc]) => {
       if (p.status === "fulfilled") setPredictions(p.value);
       if (f.status === "fulfilled") setFitness(f.value);
       if (l.status === "fulfilled") setLoad(l.value);
       if (c.status === "fulfilled") setCoach(c.value);
+      if (rc.status === "fulfilled") setCalib(rc.value);
     }).finally(() => setLoading(false));
   }, [router]);
 
@@ -264,6 +267,113 @@ export default function IronmanToursPage() {
                 </div>
               );
             })()}
+
+            {/* ── CALIBRARE DIN CURSA 6 SEPT 2025 ─────────────────────────── */}
+            {calib && calib.available && (
+              <Section title="Calibrare din Cursa 6 Sept 2025" icon="📐" accent>
+                {/* Comparativ antrenament vs cursă */}
+                <div className="grid grid-cols-3 gap-3 mb-5">
+                  {(["swim","bike","run"] as const).map((sport) => {
+                    const labels = { swim: "🏊 Înot", bike: "🚴 Ciclism", run: "🏃 Alergare" };
+                    const colors = { swim: "var(--swim)", bike: "var(--bike)", run: "var(--run)" };
+                    const trainVal = sport === "swim" ? calib.pre_race_training?.swim_pace_100m
+                      : sport === "bike" ? calib.pre_race_training?.bike_speed_kmh?.toString()
+                      : calib.pre_race_training?.run_pace_km;
+                    const raceVal = sport === "swim" ? calib.race_day?.swim_pace_100m
+                      : sport === "bike" ? calib.race_day?.bike_speed_kmh?.toString()
+                      : calib.race_day?.run_pace_km;
+                    const raceDist = sport === "swim" ? (calib.race_day?.swim_distance_m ? `${calib.race_day.swim_distance_m}m` : null)
+                      : sport === "bike" ? (calib.race_day?.bike_distance_km ? `${calib.race_day.bike_distance_km}km` : null)
+                      : (calib.race_day?.run_distance_km ? `${calib.race_day.run_distance_km}km` : null);
+                    const imprPct = sport === "swim" ? calib.improvement?.swim_pct
+                      : sport === "bike" ? calib.improvement?.bike_pct
+                      : calib.improvement?.run_pct;
+                    const unit = sport === "bike" ? " km/h" : sport === "swim" ? "/100m" : "/km";
+                    if (!trainVal && !raceVal) return null;
+                    return (
+                      <div key={sport} className="rounded-lg p-4" style={{ background: "var(--surface-2)", borderTop: `3px solid ${colors[sport]}` }}>
+                        <p className="text-xs font-bold mb-3" style={{ color: colors[sport] }}>{labels[sport]}</p>
+                        <div className="space-y-2 text-xs">
+                          <div className="flex justify-between">
+                            <span style={{ color: "var(--text-muted)" }}>Antrenament</span>
+                            <span style={{ color: "var(--text)" }}>{trainVal ?? "—"}{unit}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: "var(--text-muted)" }}>Cursă{raceDist ? ` (${raceDist})` : ""}</span>
+                            <span style={{ color: colors[sport] }}>{raceVal ?? "—"}{unit}</span>
+                          </div>
+                          {imprPct !== undefined && imprPct !== null && (
+                            <div className="mt-2 pt-2 text-center" style={{ borderTop: "1px solid var(--border)" }}>
+                              <span className="text-base font-black" style={{ color: imprPct > 0 ? "#4ecdc4" : "#ff6b35" }}>
+                                {imprPct > 0 ? "+" : ""}{imprPct.toFixed(1)}%
+                              </span>
+                              <p className="text-xs mt-0.5" style={{ color: "var(--text-muted)" }}>
+                                {imprPct > 0 ? "mai bun în cursă" : "mai slab în cursă"}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Paces actuale → calibrate */}
+                {calib.calibrated_paces && (
+                  <div className="rounded-lg p-4 mb-5" style={{ background: "var(--surface-2)" }}>
+                    <p className="text-xs font-bold tracking-widest uppercase mb-3" style={{ color: "var(--text-muted)" }}>
+                      Ritmuri actuale → calibrate cu factorul din 2025
+                    </p>
+                    <div className="grid grid-cols-3 gap-3 text-xs">
+                      {[
+                        { label: "🏊 Înot", cur: calib.current_training?.swim_pace_100m, cal: calib.calibrated_paces?.swim_pace_100m, unit: "/100m", color: "var(--swim)" },
+                        { label: "🚴 Ciclism", cur: calib.current_training?.bike_speed_kmh?.toString(), cal: calib.calibrated_paces?.bike_speed_kmh?.toString(), unit: " km/h", color: "var(--bike)" },
+                        { label: "🏃 Alergare", cur: calib.current_training?.run_pace_km, cal: calib.calibrated_paces?.run_pace_km, unit: "/km", color: "var(--run)" },
+                      ].map(({ label, cur, cal, unit, color }) => (
+                        <div key={label} className="text-center">
+                          <p className="font-bold mb-2" style={{ color }}>{label}</p>
+                          <p style={{ color: "var(--text-muted)" }}>Acum: <span style={{ color: "var(--text)" }}>{cur ?? "—"}{unit}</span></p>
+                          <p style={{ color: "var(--text-muted)" }}>Cursă: <span style={{ color: "var(--accent)" }}>{cal ?? "—"}{unit}</span></p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Predicție calibrată Ironman */}
+                {calib.ironman_calibrated && (
+                  <div className="rounded-xl p-5 text-center"
+                    style={{ background: "rgba(232,255,0,0.06)", border: "1px solid rgba(232,255,0,0.3)" }}>
+                    <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "var(--text-muted)" }}>
+                      PREDICȚIE IRONMAN TOURS — CALIBRATĂ (+{calib.improvement?.avg_pct?.toFixed(1)}% factor cursă 2025)
+                    </p>
+                    <p className="text-5xl font-black mb-4" style={{ color: "var(--accent)" }}>
+                      {calib.ironman_calibrated.total}
+                    </p>
+                    <div className="flex justify-center gap-6 text-sm">
+                      <div><span style={{ color: "var(--swim)" }}>🏊</span> <span style={{ color: "var(--text)" }}>{calib.ironman_calibrated.swim}</span> <span style={{ color: "var(--text-muted)" }}>({calib.ironman_calibrated.swim_pace}/100m)</span></div>
+                      <div><span style={{ color: "var(--bike)" }}>🚴</span> <span style={{ color: "var(--text)" }}>{calib.ironman_calibrated.bike}</span> <span style={{ color: "var(--text-muted)" }}>({calib.ironman_calibrated.bike_speed})</span></div>
+                      <div><span style={{ color: "var(--run)" }}>🏃</span> <span style={{ color: "var(--text)" }}>{calib.ironman_calibrated.run}</span> <span style={{ color: "var(--text-muted)" }}>({calib.ironman_calibrated.run_pace}/km)</span></div>
+                    </div>
+                    {calib.ironman_standard && (
+                      <p className="text-xs mt-3" style={{ color: "var(--text-muted)" }}>
+                        Față de predicția din antrenamente: <strong style={{ color: "var(--text)" }}>{calib.ironman_standard.total}</strong>
+                        {" "}→ factorul de cursă îmbunătățește cu{" "}
+                        <strong style={{ color: "#4ecdc4" }}>
+                          {fmt(calib.ironman_standard.total_s - calib.ironman_calibrated.total_s)}
+                        </strong>
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {!calib.ironman_calibrated && (
+                  <p className="text-sm text-center" style={{ color: "var(--text-muted)" }}>
+                    {calib.note || `${calib.race_activities_found ?? 0} activități găsite pe ${calib.race_date}. Verifică că probele sunt înregistrate în Strava.`}
+                  </p>
+                )}
+              </Section>
+            )}
 
             {/* ── COACH: 3 SCENARII ─────────────────────────────────────────── */}
             {hasCoach && (

@@ -197,3 +197,33 @@ export interface IronmanCoachAnalysis {
 
 export const fetchIronmanCoach = (token?: string) =>
   apiGet<IronmanCoachAnalysis>("/analysis/ironman-coach", token);
+
+// ─── Race Calibration ─────────────────────────────────────────────────────────
+
+export interface RaceSplit {
+  swim: string; swim_pace: string; T1: string;
+  bike: string; bike_speed: string; T2: string;
+  run: string; run_pace: string;
+  total: string; total_s: number;
+}
+
+export interface RaceCalibration {
+  available: boolean;
+  note?: string;
+  race_date: string;
+  race_activities_found?: number;
+  pre_race_training?: { swim_pace_100m?: string; bike_speed_kmh?: number; run_pace_km?: string };
+  race_day?: {
+    swim_pace_100m?: string; swim_distance_m?: number;
+    bike_speed_kmh?: number; bike_distance_km?: number;
+    run_pace_km?: string;   run_distance_km?: number;
+  };
+  improvement?: { swim_pct?: number; bike_pct?: number; run_pct?: number; avg_pct?: number };
+  current_training?: { swim_pace_100m?: string; bike_speed_kmh?: number; run_pace_km?: string };
+  calibrated_paces?: { swim_pace_100m?: string; bike_speed_kmh?: number; run_pace_km?: string };
+  ironman_standard?: RaceSplit;
+  ironman_calibrated?: RaceSplit;
+}
+
+export const fetchRaceCalibration = (token?: string) =>
+  apiGet<RaceCalibration>("/analysis/race-calibration?race_date=2025-09-06", token);
