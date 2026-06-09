@@ -41,7 +41,7 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 async function apiGet<T>(path: string, token?: string): Promise<T> {
-  const t = token || getToken() || "";
+  let t = token || getToken() || "";
   const sep = path.includes("?") ? "&" : "?";
   let res = await fetch(`${API_BASE}${path}${sep}access_token=${t}`);
   if (res.status === 401) {
