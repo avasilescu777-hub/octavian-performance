@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getToken, getAthleteName, clearTokens,
-  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach, fetchRaceCalibration, fetchLabProfile,
-  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis, RaceCalibration, LabProfile
+  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach, fetchRaceCalibration, fetchLabProfile, fetchWeather,
+  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis, RaceCalibration, LabProfile, WeatherForecast
 } from "@/lib/api";
 import NavBar from "@/components/NavBar";
 
@@ -131,6 +131,7 @@ export default function IronmanToursPage() {
   const [coach, setCoach] = useState<IronmanCoachAnalysis | null>(null);
   const [calib, setCalib] = useState<RaceCalibration | null>(null);
   const [lab, setLab] = useState<LabProfile | null>(null);
+  const [weather, setWeather] = useState<WeatherForecast | null>(null);
   const [loading, setLoading] = useState(true);
   const [athleteName, setAthleteName] = useState("");
   const countdown = useCountdown(RACE_DATE);
@@ -146,13 +147,15 @@ export default function IronmanToursPage() {
       fetchIronmanCoach(token),
       fetchRaceCalibration(token),
       fetchLabProfile(token),
-    ]).then(([p, f, l, c, rc, lb]) => {
+      fetchWeather(token),
+    ]).then(([p, f, l, c, rc, lb, wx]) => {
       if (p.status === "fulfilled") setPredictions(p.value);
       if (f.status === "fulfilled") setFitness(f.value);
       if (l.status === "fulfilled") setLoad(l.value);
       if (c.status === "fulfilled") setCoach(c.value);
       if (rc.status === "fulfilled") setCalib(rc.value);
       if (lb.status === "fulfilled") setLab(lb.value);
+      if (wx.status === "fulfilled") setWeather(wx.value);
     }).finally(() => setLoading(false));
   }, [router]);
 
@@ -214,6 +217,94 @@ export default function IronmanToursPage() {
 
         {!loading && (
           <>
+            {/* ── METEO ZIUA CURSEI ────────────────────────────────────────── */}
+            {weather && (
+              <div className="rounded-xl p-4 mb-5"
+                style={{ background: "var(--surface)", border: `2px solid ${weather.temp_max >= 30 ? "rgba(255,107,53,0.5)" : "var(--border)"}` }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "var(--accent)" }}>
+                      PROGNOZĂ METEO — 14 IUNIE 2026
+                    </p>
+                    <p className="text-sm font-bold" style={{ color: "var(--text)" }}>{weather.condition} · {weather.location}</p>
+                  </div>
+                  <p className="text-xs text-right" style={{ color: "var(--text-muted)" }}>{weather.source}</p>
+                </div>
+
+                {/* Alert caniculă */}
+                {weather.alert && (
+                  <div className="rounded-lg px-4 py-2 mb-3 text-sm font-bold"
+                    style={{ background: "rgba(255,107,53,0.15)", color: "#ff6b35", border: "1px solid rgba(255,107,53,0.3)" }}>
+                    {weather.alert}
+                  </div>
+                )}
+
+                {/* Metrici principale */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                  {[
+                    { label: "Temp. max", value: `${weather.temp_max}°C`, color: weather.temp_max >= 30 ? "#ff6b35" : "var(--accent)", icon: "🌡️" },
+                    { label: "Temp. min", value: `${weather.temp_min}°C`, color: "var(--text)", icon: "🌅" },
+                    { label: "Vânt max", value: `${weather.wind_kmh} km/h ${weather.wind_dir}`, color: weather.wind_kmh >= 20 ? "#ff6b35" : "var(--text)", icon: "💨" },
+                    { label: "Rafale", value: `${weather.gusts_kmh} km/h`, color: weather.gusts_kmh >= 30 ? "#ff6b35" : "var(--text)", icon: "🌬️" },
+                  ].map(({ label, value, color, icon }) => (
+                    <div key={label} className="rounded-lg p-3 text-center" style={{ background: "var(--surface-2)" }}>
+                      <p className="text-lg mb-0.5">{icon}</p>
+                      <p className="text-sm font-black" style={{ color }}>{value}</p>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Impact pe performanță */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="rounded-lg p-3" style={{ background: "var(--surface-2)" }}>
+                    <p className="text-xs font-bold mb-1" style={{ color: "var(--bike)" }}>
+                      🚴 Impact ciclism
+                      {weather.bike_speed_penalty_kmh > 0
+                        ? <span style={{ color: "#ff6b35" }}> −{weather.bike_speed_penalty_kmh} km/h</span>
+                        : <span style={{ color: "#4ecdc4" }}> neglijabil</span>}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{weather.bike_impact_note}</p>
+                  </div>
+                  <div className="rounded-lg p-3" style={{ background: "var(--surface-2)" }}>
+                    <p className="text-xs font-bold mb-1" style={{ color: "var(--run)" }}>
+                      🏃 Impact alergare
+                      {weather.run_heat_penalty_pct > 0
+                        ? <span style={{ color: "#ff6b35" }}> −{weather.run_heat_penalty_pct}% viteză</span>
+                        : <span style={{ color: "#4ecdc4" }}> neglijabil</span>}
+                    </p>
+                    <p className="text-xs" style={{ color: "var(--text-muted)" }}>{weather.run_impact_note}</p>
+                  </div>
+                </div>
+
+                {/* Predicție ajustată meteo */}
+                {lab && (weather.bike_speed_penalty_kmh > 0 || weather.run_heat_penalty_pct > 0) && (() => {
+                  const r = lab.scenarios.realistic;
+                  if (!r) return null;
+                  const bikeKmh = parseFloat(r.bike_speed) - weather.bike_speed_penalty_kmh;
+                  const bikeS = 180000 / (bikeKmh / 3.6);
+                  const runPaceS = parseFloat(r.run_pace.replace(":", "")) * 60 / 100 * (1 + weather.run_heat_penalty_pct / 100);
+                  // run_pace is mm:ss format, parse properly
+                  const [rm, rs] = r.run_pace.split(":").map(Number);
+                  const runPaceSKm = (rm * 60 + rs) * (1 + weather.run_heat_penalty_pct / 100);
+                  const runS = 42195 * runPaceSKm / 1000;
+                  const swimS = r.total_s - (parseFloat(r.bike.split(":")[0]) * 3600 + parseFloat(r.bike.split(":")[1] || "0") * 60) - (parseFloat(r.run.split(":")[0]) * 3600 + parseFloat(r.run.split(":")[1] || "0") * 60) - 780;
+                  const totalS = Math.max(swimS, 0) + 480 + bikeS + 300 + runS;
+                  const fmtT = (s: number) => { const h = Math.floor(s/3600); const m = Math.floor((s%3600)/60); return `${h}:${String(m).padStart(2,"0")}`; };
+                  return (
+                    <div className="mt-3 rounded-lg p-3" style={{ background: "rgba(255,107,53,0.08)", border: "1px solid rgba(255,107,53,0.25)" }}>
+                      <p className="text-xs font-bold mb-2" style={{ color: "#ff6b35" }}>🌡️ Predicție ajustată pentru condițiile meteo (scenariu realist)</p>
+                      <div className="flex gap-6 flex-wrap text-xs">
+                        <span style={{ color: "var(--bike)" }}>🚴 {fmtT(bikeS)} · {bikeKmh.toFixed(1)} km/h</span>
+                        <span style={{ color: "var(--run)" }}>🏃 {fmtT(runS)} · {fmtT(runPaceSKm)}/km</span>
+                        <span className="font-black" style={{ color: "#ff6b35" }}>TOTAL: {fmtT(totalS)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* ── TEST LAB — PREDICȚIE PRIMARĂ ─────────────────────────────── */}
             {lab && (
               <>

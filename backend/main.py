@@ -13,6 +13,7 @@ from analysis.ironman_coach import full_ironman_analysis
 from analysis.race_calibration import calibrate_from_race
 from analysis.lab_profile import get_lab_profile
 from analysis.predictions import _swim_speed_from_activities
+from analysis.weather import fetch_race_weather
 
 load_dotenv()
 
@@ -187,6 +188,12 @@ async def get_lab_profile_endpoint(access_token: str = Query(...)):
     swim_result = _swim_speed_from_activities(activities)
     swim_mps = swim_result[0] if swim_result else None
     return get_lab_profile(swim_mps)
+
+
+@app.get("/analysis/weather")
+async def get_race_weather(access_token: str = Query(...)):
+    """Race-day weather forecast for Tours, France — from Open-Meteo."""
+    return await fetch_race_weather()
 
 
 @app.get("/analysis/race-calibration")

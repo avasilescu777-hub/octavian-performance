@@ -281,6 +281,31 @@ export interface RaceCalibration {
   ironman_calibrated?: RaceSplit;
 }
 
+// ─── Weather ──────────────────────────────────────────────────────────────────
+
+export interface WeatherForecast {
+  race_date: string;
+  location: string;
+  temp_max: number;
+  temp_min: number;
+  wind_kmh: number;
+  wind_dir: string;
+  wind_dir_deg: number;
+  gusts_kmh: number;
+  precip_mm: number;
+  condition: string;
+  condition_label: string;
+  bike_speed_penalty_kmh: number;
+  run_heat_penalty_pct: number;
+  bike_impact_note: string;
+  run_impact_note: string;
+  alert: string | null;
+  source: string;
+}
+
+export const fetchWeather = (token?: string) =>
+  apiGet<WeatherForecast>("/analysis/weather", token);
+
 export const fetchRaceCalibration = (token?: string) => {
   const t = token || getToken();
   if (!t) throw new Error("No access token");
