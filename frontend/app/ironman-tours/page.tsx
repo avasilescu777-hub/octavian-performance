@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   getToken, getAthleteName, clearTokens,
-  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach, fetchRaceCalibration,
-  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis, RaceCalibration
+  fetchPredictions, fetchFitness, fetchTrainingLoad, fetchIronmanCoach, fetchRaceCalibration, fetchLabProfile,
+  Predictions, FitnessMetrics, TrainingLoad, IronmanCoachAnalysis, RaceCalibration, LabProfile
 } from "@/lib/api";
 import NavBar from "@/components/NavBar";
 
@@ -130,6 +130,7 @@ export default function IronmanToursPage() {
   const [load, setLoad] = useState<TrainingLoad | null>(null);
   const [coach, setCoach] = useState<IronmanCoachAnalysis | null>(null);
   const [calib, setCalib] = useState<RaceCalibration | null>(null);
+  const [lab, setLab] = useState<LabProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [athleteName, setAthleteName] = useState("");
   const countdown = useCountdown(RACE_DATE);
@@ -144,12 +145,14 @@ export default function IronmanToursPage() {
       fetchTrainingLoad(token),
       fetchIronmanCoach(token),
       fetchRaceCalibration(token),
-    ]).then(([p, f, l, c, rc]) => {
+      fetchLabProfile(token),
+    ]).then(([p, f, l, c, rc, lb]) => {
       if (p.status === "fulfilled") setPredictions(p.value);
       if (f.status === "fulfilled") setFitness(f.value);
       if (l.status === "fulfilled") setLoad(l.value);
       if (c.status === "fulfilled") setCoach(c.value);
       if (rc.status === "fulfilled") setCalib(rc.value);
+      if (lb.status === "fulfilled") setLab(lb.value);
     }).finally(() => setLoading(false));
   }, [router]);
 
@@ -211,6 +214,152 @@ export default function IronmanToursPage() {
 
         {!loading && (
           <>
+            {/* ── TEST LAB — PREDICȚIE PRIMARĂ ─────────────────────────────── */}
+            {lab && (
+              <>
+                {/* Poze lab */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-5">
+                  {["/lab/bike1.jpg","/lab/bike2.jpg","/lab/run1.jpg","/lab/run2.jpg"].map((src, i) => (
+                    <div key={i} className="rounded-xl overflow-hidden aspect-square bg-neutral-900"
+                      style={{ border: "1px solid var(--border)" }}>
+                      <img src={src} alt={`Lab test ${i+1}`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    </div>
+                  ))}
+                </div>
+
+                {/* Header lab */}
+                <div className="rounded-xl p-5 mb-5"
+                  style={{ background: "var(--surface)", border: "1px solid rgba(232,255,0,0.2)" }}>
+                  <div className="flex items-start justify-between mb-4">
+                    <div>
+                      <p className="text-xs font-bold tracking-widest uppercase" style={{ color: "var(--accent)" }}>
+                        TEST METABOLIC OFICIAL
+                      </p>
+                      <p className="text-lg font-black mt-0.5" style={{ color: "var(--text)" }}>
+                        Unstoppable Performance Lab
+                      </p>
+                      <p className="text-sm" style={{ color: "var(--text-muted)" }}>{lab.lab_date} · COSMED · Bicicletă + Bandă</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>Transpirație</p>
+                      <p className="font-black" style={{ color: "var(--accent)" }}>{lab.electrolytes.sweat_rate_L_per_h} L/h</p>
+                      <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                        Na: {lab.electrolytes.sodium_mg_per_L} mg/L · K: {lab.electrolytes.potassium_mg_per_L} mg/L
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Zone bike + run */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Bike zones */}
+                    <div>
+                      <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "var(--bike)" }}>🚴 Zone Ciclism</p>
+                      <div className="space-y-1">
+                        {lab.bike_zones.filter(z => z.hr_min).map(z => (
+                          <div key={z.zone} className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
+                            style={{ background: z.zone === "Z1" ? "rgba(232,255,0,0.08)" : "var(--surface-2)",
+                                     border: z.zone === "Z1" ? "1px solid rgba(232,255,0,0.2)" : "none" }}>
+                            <span className="font-bold w-6" style={{ color: z.zone === "Z1" ? "var(--accent)" : "var(--text-muted)" }}>{z.zone}</span>
+                            <span style={{ color: "var(--text)" }}>{z.hr_min}–{z.hr_max} bpm</span>
+                            <span style={{ color: "var(--bike)" }}>{z.watts_min}–{z.watts_max}W</span>
+                            <span style={{ color: "var(--text-muted)" }}>{z.kcal_intake} kcal/h</span>
+                            <span className="hidden md:inline" style={{ color: "var(--text-muted)" }}>{z.duration}</span>
+                            {z.zone === "Z1" && <span className="font-bold" style={{ color: "var(--accent)" }}>← IM</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Run zones */}
+                    <div>
+                      <p className="text-xs font-bold tracking-widest uppercase mb-2" style={{ color: "var(--run)" }}>🏃 Zone Alergare</p>
+                      <div className="space-y-1">
+                        {lab.run_zones.filter(z => z.hr_min).map(z => (
+                          <div key={z.zone} className="flex items-center justify-between rounded-lg px-3 py-2 text-xs"
+                            style={{ background: z.zone === "Z1" ? "rgba(232,255,0,0.08)" : "var(--surface-2)",
+                                     border: z.zone === "Z1" ? "1px solid rgba(232,255,0,0.2)" : "none" }}>
+                            <span className="font-bold w-6" style={{ color: z.zone === "Z1" ? "var(--accent)" : "var(--text-muted)" }}>{z.zone}</span>
+                            <span style={{ color: "var(--text)" }}>{z.hr_min}–{z.hr_max} bpm</span>
+                            <span style={{ color: "var(--run)" }}>{z.pace}/km</span>
+                            <span style={{ color: "var(--text-muted)" }}>{z.kcal_intake} kcal/h</span>
+                            <span className="hidden md:inline" style={{ color: "var(--text-muted)" }}>{z.duration}</span>
+                            {z.zone === "Z1" && <span className="font-bold" style={{ color: "var(--accent)" }}>← IM</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Predicție lab — 3 scenarii */}
+                <div className="rounded-xl p-6 mb-5"
+                  style={{ background: "rgba(232,255,0,0.04)", border: "2px solid rgba(232,255,0,0.3)" }}>
+                  <p className="text-xs font-bold tracking-widest uppercase mb-1" style={{ color: "var(--accent)" }}>
+                    PREDICȚIE IRONMAN TOURS — BAZATĂ PE TEST LAB
+                  </p>
+                  <p className="text-xs mb-5" style={{ color: "var(--text-muted)" }}>{lab.methodology}</p>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {(["conservative","realistic","aggressive"] as const).map((key) => {
+                      const s = lab.scenarios[key];
+                      if (!s) return null;
+                      const labels = { conservative: "C — Zi dificilă", realistic: "B — Realist", aggressive: "A — Zi perfectă" };
+                      const colors = { conservative: "var(--run)", realistic: "var(--bike)", aggressive: "var(--accent)" };
+                      const isMain = key === "realistic";
+                      return (
+                        <div key={key} className="rounded-xl p-4"
+                          style={{ background: isMain ? "rgba(232,255,0,0.07)" : "var(--surface-2)",
+                                   border: `1px solid ${isMain ? "rgba(232,255,0,0.3)" : "var(--border)"}` }}>
+                          <p className="text-xs font-bold mb-1" style={{ color: colors[key] }}>{labels[key]}</p>
+                          <p className="text-3xl font-black mb-3" style={{ color: isMain ? "var(--accent)" : "var(--text)" }}>{s.total}</p>
+                          <div className="space-y-1 text-xs">
+                            <div className="flex justify-between"><span style={{ color: "var(--swim)" }}>🏊 Înot</span><span style={{ color: "var(--text)" }}>{s.swim}</span></div>
+                            <div className="flex justify-between"><span style={{ color: "var(--bike)" }}>🚴 Ciclism</span><span style={{ color: "var(--text)" }}>{s.bike} <span style={{ color: "var(--text-muted)" }}>· {s.bike_speed} · {s.bike_watts}</span></span></div>
+                            <div className="flex justify-between"><span style={{ color: "var(--run)" }}>🏃 Maraton</span><span style={{ color: "var(--text)" }}>{s.run} <span style={{ color: "var(--text-muted)" }}>· {s.run_pace}/km</span></span></div>
+                            <div className="mt-2 pt-2 text-xs italic" style={{ borderTop: "1px solid var(--border)", color: "var(--text-muted)" }}>
+                              Bike: {s.bike_hr} · Run: {s.run_label}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
+                    Înotul folosește media din Strava · Ciclismul și alergarea din zonele testate azi în laborator
+                  </p>
+                </div>
+
+                {/* Nutriție personalizată */}
+                <Section title="Plan Nutriție Personalizat — Lab 9 Iunie" icon="🧪">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    {[
+                      { label: "🏊 Pre-cursă + Înot", items: [...lab.nutrition.pre_race, ...lab.nutrition.T1], color: "var(--swim)" },
+                      { label: "🚴 Ciclism 180km", items: lab.nutrition.bike, color: "var(--bike)" },
+                      { label: "🏃 Alergare 42km", items: [...lab.nutrition.run, ...lab.nutrition.T2], color: "var(--run)" },
+                    ].map(({ label, items, color }) => (
+                      <div key={label} className="rounded-lg p-4" style={{ background: "var(--surface-2)" }}>
+                        <p className="font-bold text-sm mb-3" style={{ color }}>{label}</p>
+                        <ul className="space-y-1.5">
+                          {items.map((item, i) => (
+                            <li key={i} className="text-xs flex gap-2" style={{ color: "var(--text-muted)" }}>
+                              <span style={{ color }}>›</span>{item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-lg p-3" style={{ background: "var(--surface-2)", border: "1px solid rgba(232,255,0,0.15)" }}>
+                    <p className="text-xs font-bold mb-2" style={{ color: "var(--accent)" }}>💧 Hidratare personalizată</p>
+                    {lab.nutrition.hydration.map((h, i) => (
+                      <p key={i} className="text-xs" style={{ color: "var(--text-muted)" }}>› {h}</p>
+                    ))}
+                  </div>
+                </Section>
+              </>
+            )}
+
             {/* ── PREDICȚIE IRONMAN — CARD PRINCIPAL ────────────────────────── */}
             {(() => {
               const r = coach?.scenarios?.realistic;
@@ -494,12 +643,6 @@ export default function IronmanToursPage() {
                         {coach.swim.trend && (
                           <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>Trend</span><span style={{ color: "var(--swim)" }}>{coach.swim.trend}</span></div>
                         )}
-                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
-                          <p className="text-xs font-bold" style={{ color: "var(--swim)" }}>Predicție Ironman:</p>
-                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            Realist: <strong style={{ color: "var(--text)" }}>{coach.swim.realistic?.time}</strong> ({coach.swim.realistic?.pace_100m}/100m)
-                          </p>
-                        </div>
                       </div>
                     ) : (
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{coach.swim.note || "Date insuficiente"}</p>
@@ -526,12 +669,6 @@ export default function IronmanToursPage() {
                         {coach.bike.aerobic_decoupling && (
                           <p className="text-xs mt-2 italic leading-tight" style={{ color: "var(--text-muted)" }}>{coach.bike.aerobic_decoupling}</p>
                         )}
-                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
-                          <p className="text-xs font-bold" style={{ color: "var(--bike)" }}>Predicție Ironman:</p>
-                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            Realist: <strong style={{ color: "var(--text)" }}>{coach.bike.realistic?.time}</strong> ({coach.bike.realistic?.avg_speed_kmh} km/h)
-                          </p>
-                        </div>
                       </div>
                     ) : (
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{coach.bike.note || "Date insuficiente"}</p>
@@ -556,13 +693,6 @@ export default function IronmanToursPage() {
                         {coach.run.vo2max_estimate && (
                           <div className="flex justify-between"><span style={{ color: "var(--text-muted)" }}>VO2max estimat</span><span style={{ color: "var(--text)" }}>{coach.run.vo2max_estimate} ml/kg/min</span></div>
                         )}
-                        <div className="mt-2 pt-2" style={{ borderTop: "1px solid var(--border)" }}>
-                          <p className="text-xs font-bold" style={{ color: "var(--run)" }}>Predicție maraton IM:</p>
-                          <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>
-                            Realist: <strong style={{ color: "var(--text)" }}>{coach.run.realistic?.time}</strong> ({coach.run.realistic?.pace_per_km}/km)
-                          </p>
-                          <p className="text-xs" style={{ color: "var(--text-muted)" }}>Factor oboseală: +18%</p>
-                        </div>
                       </div>
                     ) : (
                       <p className="text-xs" style={{ color: "var(--text-muted)" }}>{coach.run.note || "Date insuficiente"}</p>

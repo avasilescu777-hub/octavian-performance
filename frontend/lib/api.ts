@@ -179,7 +179,7 @@ export interface CoachSportAnalysis {
   long_runs_25km_plus?: number;
   marathon_distance_runs?: number;
   total_run_km?: number;
-  weekly_avg_km?: number;
+  weekly_run_avg_km?: number;
   avg_pace_km?: string;
   long_run_pace_km?: string;
   brick_pace_km?: string;
@@ -220,6 +220,39 @@ export interface IronmanCoachAnalysis {
 
 export const fetchIronmanCoach = (token?: string) =>
   apiGet<IronmanCoachAnalysis>("/analysis/ironman-coach", token);
+
+// ─── Lab Profile ──────────────────────────────────────────────────────────────
+
+export interface LabZone {
+  zone: string;
+  hr_min?: number; hr_max?: number;
+  watts_min?: number; watts_max?: number;
+  pace?: string; pace_s_per_km?: number;
+  kcal_burn?: number; kcal_intake?: number;
+  duration?: string; note?: string;
+}
+
+export interface LabScenario {
+  swim: string; swim_pace: string;
+  T1: string;
+  bike: string; bike_speed: string; bike_watts: string; bike_hr: string;
+  T2: string;
+  run: string; run_pace: string; run_label: string;
+  total: string; total_s: number;
+}
+
+export interface LabProfile {
+  lab_date: string; lab_location: string;
+  bike_zones: LabZone[];
+  run_zones: LabZone[];
+  electrolytes: { sodium_mg_per_L: number; potassium_mg_per_L: number; sweat_rate_L_per_h: number };
+  nutrition: { pre_race: string[]; T1: string[]; bike: string[]; T2: string[]; run: string[]; hydration: string[] };
+  scenarios: { aggressive?: LabScenario; realistic?: LabScenario; conservative?: LabScenario };
+  methodology: string;
+}
+
+export const fetchLabProfile = (token?: string) =>
+  apiGet<LabProfile>("/analysis/lab-profile", token);
 
 // ─── Race Calibration ─────────────────────────────────────────────────────────
 
