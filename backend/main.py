@@ -157,8 +157,11 @@ async def fetch_all_activities(access_token: str, per_page: int = 100, months: i
 
 
 async def _resolve_token(client_token: str = None) -> str:
-    """Return a usable token: client's if provided, otherwise stored/refreshed."""
-    return await get_valid_token(client_token)
+    """Return a usable token or raise 401 if none available."""
+    token = await get_valid_token(client_token)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required. Please connect Strava.")
+    return token
 
 
 # ─── Endpoints ───────────────────────────────────────────────────────────────

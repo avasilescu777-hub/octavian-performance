@@ -58,7 +58,7 @@ function DashboardContent() {
     if (tl.status === "fulfilled") setTrainingLoad(tl.value);
     if (fit.status === "fulfilled") setFitness(fit.value);
     if (tl.status === "rejected" && fit.status === "rejected")
-      setError("Nu s-au putut încărca datele. Verifică conexiunea și re-autentifică-te.");
+      setError("Conectează-te cu Strava pentru a vedea datele.");
     setLoading(false);
   }, []);
 
@@ -106,8 +106,18 @@ function DashboardContent() {
         )}
 
         {error && (
-          <div className="rounded-xl p-4 mb-6" style={{ background: "#2a1010", border: "1px solid #ef4444" }}>
-            <p style={{ color: "#ef4444" }}>{error}</p>
+          <div className="flex flex-col items-center justify-center py-32 gap-6">
+            <p style={{ color: "var(--text-muted)" }}>{error}</p>
+            <a
+              href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/login`}
+              className="flex items-center gap-3 px-8 py-4 rounded-full font-bold text-base transition-all hover:scale-105"
+              style={{ background: "#FC4C02", color: "white", textDecoration: "none" }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+                <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
+              </svg>
+              Conectează Strava
+            </a>
           </div>
         )}
 
