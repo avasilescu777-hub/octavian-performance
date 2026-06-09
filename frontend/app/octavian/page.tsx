@@ -62,7 +62,6 @@ function DashboardContent() {
 
   useEffect(() => {
     if (token === null) return;
-    if (!token) { setLoading(false); return; }
     loadData(token);
   }, [token, loadData]);
 
@@ -97,7 +96,7 @@ function DashboardContent() {
       <NavBar athleteName={athleteName} onLogout={handleLogout} />
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {(loading && token !== "") && (
+        {loading && (
           <div className="flex flex-col items-center justify-center py-32 gap-4">
             <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
               style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
