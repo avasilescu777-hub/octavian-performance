@@ -41,8 +41,7 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 async function apiGet<T>(path: string, token?: string): Promise<T> {
-  let t = token || getToken();
-  if (!t) throw new Error("No access token");
+  const t = token || getToken() || "";
   const sep = path.includes("?") ? "&" : "?";
   let res = await fetch(`${API_BASE}${path}${sep}access_token=${t}`);
   if (res.status === 401) {

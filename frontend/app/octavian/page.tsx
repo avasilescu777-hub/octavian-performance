@@ -63,7 +63,7 @@ function DashboardContent() {
   }, []);
 
   useEffect(() => {
-    if (token) loadData(token);
+    if (token !== null) loadData(token ?? "");
   }, [token, loadData]);
 
   useEffect(() => {

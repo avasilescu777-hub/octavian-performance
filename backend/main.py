@@ -114,7 +114,7 @@ async def refresh_token_endpoint(refresh_token: str = Query(...)):
     return data
 
 
-@app.post("/auth/save-token")
+@app.get("/auth/save-token")
 async def save_token(access_token: str = Query(...), refresh_token: str = Query(...), expires_at: int = Query(0)):
     """Called by frontend after OAuth to persist tokens on the server."""
     store_tokens(access_token, refresh_token, expires_at)
