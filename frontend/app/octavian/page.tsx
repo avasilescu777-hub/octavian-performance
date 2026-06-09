@@ -111,7 +111,7 @@ function DashboardContent() {
           </div>
         )}
 
-        {(!loading && (!token || error)) && (
+        {(!loading && !trainingLoad && !fitness) && (
           <div className="flex flex-col items-center justify-center py-32 gap-6">
             <p className="text-lg font-semibold" style={{ color: "var(--text)" }}>
               Conectează-te cu Strava pentru a vedea datele
@@ -129,7 +129,7 @@ function DashboardContent() {
           </div>
         )}
 
-        {!loading && !error && token && (
+        {!loading && (trainingLoad || fitness) && (
           <>
             {/* Fitness Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
