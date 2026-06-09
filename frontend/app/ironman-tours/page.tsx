@@ -463,26 +463,42 @@ export default function IronmanToursPage() {
             )}
 
             {/* ── DATE STRAVA ANALIZATE ──────────────────────────────────────── */}
-            {predictions?.activity_summary && (
-              <Section title="Date Strava analizate" icon="📂">
-                <div className="grid grid-cols-3 gap-3 mb-3">
-                  {[
-                    { label: "🏊 Sesiuni înot", val: predictions.activity_summary.swims, sub: `Cel mai lung: ${predictions.activity_summary.longest_swim_km} km` },
-                    { label: "🚴 Ieșiri ciclism", val: predictions.activity_summary.rides, sub: `Cea mai lungă: ${predictions.activity_summary.longest_ride_km} km` },
-                    { label: "🏃 Alergări", val: predictions.activity_summary.runs, sub: `Cea mai lungă: ${predictions.activity_summary.longest_run_km} km` },
-                  ].map(({ label, val, sub }) => (
-                    <div key={label} className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
-                      <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>{label}</p>
-                      <p className="text-2xl font-black" style={{ color: "var(--accent)" }}>{val}</p>
-                      <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{sub}</p>
-                    </div>
-                  ))}
-                </div>
-                <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
-                  Total {predictions.activity_summary.total_activities} activități analizate · ultimele 6 luni
-                </p>
-              </Section>
-            )}
+            {(() => {
+              const s = predictions?.activity_summary;
+              const sw = coach?.swim?.available ? coach.swim : null;
+              const bk = coach?.bike?.available ? coach.bike : null;
+              const rn = coach?.run?.available  ? coach.run  : null;
+              if (!sw && !bk && !rn && !s) return null;
+
+              const swimCount   = sw?.sessions_6m  ?? s?.swims   ?? 0;
+              const bikeCount   = bk?.rides_6m      ?? s?.rides   ?? 0;
+              const runCount    = rn?.runs_6m        ?? s?.runs    ?? 0;
+              const swimLongest = sw?.longest_m ? `${(sw.longest_m / 1000).toFixed(2)} km` : s?.longest_swim_km ? `${s.longest_swim_km} km` : "—";
+              const bikeLongest = bk?.longest_ride_km ? `${bk.longest_ride_km} km` : s?.longest_ride_km ? `${s.longest_ride_km} km` : "—";
+              const runLongest  = rn?.longest_run_km  ? `${rn.longest_run_km} km`  : s?.longest_run_km  ? `${s.longest_run_km} km`  : "—";
+              const total = s?.total_activities ?? (swimCount + bikeCount + runCount);
+
+              return (
+                <Section title="Date Strava analizate" icon="📂">
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {[
+                      { label: "🏊 Sesiuni înot",   val: swimCount, sub: `Cel mai lung: ${swimLongest}` },
+                      { label: "🚴 Ieșiri ciclism",  val: bikeCount, sub: `Cea mai lungă: ${bikeLongest}` },
+                      { label: "🏃 Alergări",        val: runCount,  sub: `Cea mai lungă: ${runLongest}` },
+                    ].map(({ label, val, sub }) => (
+                      <div key={label} className="rounded-lg p-4 text-center" style={{ background: "var(--surface-2)" }}>
+                        <p className="text-xs mb-1" style={{ color: "var(--text-muted)" }}>{label}</p>
+                        <p className="text-2xl font-black" style={{ color: "var(--accent)" }}>{val}</p>
+                        <p className="text-xs mt-1" style={{ color: "var(--text-muted)" }}>{sub}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-center" style={{ color: "var(--text-muted)" }}>
+                    {total} activități analizate · ultimele 6 luni
+                  </p>
+                </Section>
+              );
+            })()}
 
             {/* ── STRATEGIE PACING ──────────────────────────────────────────── */}
             <Section title="Strategie de Pacing" icon="⚡">
