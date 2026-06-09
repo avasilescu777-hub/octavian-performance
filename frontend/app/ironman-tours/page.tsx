@@ -137,8 +137,7 @@ export default function IronmanToursPage() {
   const countdown = useCountdown(RACE_DATE);
 
   useEffect(() => {
-    const token = getToken();
-    if (!token) { router.replace("/"); return; }
+    const token = getToken() || "";   // backend uses stored token if empty
     setAthleteName(getAthleteName());
     Promise.allSettled([
       fetchPredictions(token),

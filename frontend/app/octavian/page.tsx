@@ -36,13 +36,14 @@ function DashboardContent() {
       window.history.replaceState({}, "", "/octavian");
       setToken(urlToken);
       setAthleteName(urlAthleteName?.replace("+", " ") || "");
+      // Persist tokens on server so future sessions work without re-auth
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      fetch(`${API_BASE}/auth/save-token?access_token=${urlToken}&refresh_token=${urlRefresh}`)
+        .catch(() => {});
     } else {
       const stored = getToken();
-      if (!stored) {
-        router.replace("/");
-        return;
-      }
-      setToken(stored);
+      // Use stored local token if available, otherwise backend may have a stored token
+      setToken(stored || "");
       setAthleteName(getAthleteName());
     }
   }, [searchParams, router]);
