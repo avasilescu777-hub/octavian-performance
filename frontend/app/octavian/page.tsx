@@ -36,13 +36,11 @@ function DashboardContent() {
       window.history.replaceState({}, "", "/octavian");
       setToken(urlToken);
       setAthleteName(urlAthleteName?.replace("+", " ") || "");
-      // Persist tokens on server so future sessions work without re-auth
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
       fetch(`${API_BASE}/auth/save-token?access_token=${urlToken}&refresh_token=${urlRefresh}`)
         .catch(() => {});
     } else {
       const stored = getToken();
-      // Use stored local token if available, otherwise backend may have a stored token
       setToken(stored || "");
       setAthleteName(getAthleteName());
     }
@@ -58,12 +56,14 @@ function DashboardContent() {
     if (tl.status === "fulfilled") setTrainingLoad(tl.value);
     if (fit.status === "fulfilled") setFitness(fit.value);
     if (tl.status === "rejected" && fit.status === "rejected")
-      setError("Conectează-te cu Strava pentru a vedea datele.");
+      setError("data_error");
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (token !== null) loadData(token ?? "");
+    if (token === null) return;
+    if (!token) { setLoading(false); return; }
+    loadData(token);
   }, [token, loadData]);
 
   useEffect(() => {
@@ -97,7 +97,7 @@ function DashboardContent() {
       <NavBar athleteName={athleteName} onLogout={handleLogout} />
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {loading && (
+        {(loading && token !== "") && (
           <div className="flex flex-col items-center justify-center py-32 gap-4">
             <div className="w-12 h-12 rounded-full border-2 border-t-transparent animate-spin"
               style={{ borderColor: "var(--accent)", borderTopColor: "transparent" }} />
@@ -105,15 +105,17 @@ function DashboardContent() {
           </div>
         )}
 
-        {error && (
+        {(!loading && (!token || error)) && (
           <div className="flex flex-col items-center justify-center py-32 gap-6">
-            <p style={{ color: "var(--text-muted)" }}>{error}</p>
+            <p className="text-lg font-semibold" style={{ color: "var(--text)" }}>
+              Conectează-te cu Strava pentru a vedea datele
+            </p>
             <a
               href={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/auth/login`}
               className="flex items-center gap-3 px-8 py-4 rounded-full font-bold text-base transition-all hover:scale-105"
               style={{ background: "#FC4C02", color: "white", textDecoration: "none" }}
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="white">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
                 <path d="M15.387 17.944l-2.089-4.116h-3.065L15.387 24l5.15-10.172h-3.066m-7.008-5.599l2.836 5.598h4.172L10.463 0l-7 13.828h4.169" />
               </svg>
               Conectează Strava
@@ -121,7 +123,7 @@ function DashboardContent() {
           </div>
         )}
 
-        {!loading && !error && (
+        {!loading && !error && token && (
           <>
             {/* Fitness Stats Row */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
