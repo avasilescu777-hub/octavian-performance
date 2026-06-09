@@ -33,23 +33,53 @@ def _wind_label(deg):
     return "N"
 
 
-def _bike_wind_penalty_kmh(wind_kmh, gusts_kmh):
+def _bike_wind_penalty_kmh(wind_kmh, gusts_kmh, temp_c=20.0, power_w=145):
     """
-    Average speed loss due to wind on a looped course.
+    Net speed loss on a looped course due to wind, computed via
+    bikecalculator.com exact physics (harmonic mean of head/tail legs).
     Headwind costs more than tailwind helps (P ~ v^3 aero drag).
+    Also includes a small extra penalty for gusts (bike handling).
     """
-    penalty = 0.0
-    if wind_kmh >= 30:
-        penalty += 2.5
-    elif wind_kmh >= 20:
-        penalty += 1.5
-    elif wind_kmh >= 10:
-        penalty += 0.8
+    import math
+    CDA, CRR, RWEIGHT, BWEIGHT = 0.233, 0.004, 77.0, 9.0
+    TRAN, ELEV = 0.95, 58.0
+
+    def speed(hw_kmh):
+        hw   = hw_kmh / 3.6
+        rho  = (1.293 - 0.00426 * temp_c) * math.exp(-ELEV / 7000.0)
+        tres = 9.8 * (RWEIGHT + BWEIGHT) * CRR
+        aeff = CDA * rho / 2.0
+        vel  = 8.0
+        for _ in range(200):
+            tv  = vel + hw
+            f   = vel * (aeff * tv * tv + tres) - TRAN * power_w
+            fp  = aeff * (3.0 * vel + hw) * tv + tres
+            if abs(fp) < 1e-12:
+                break
+            vel -= f / fp
+            if abs(f) < 0.0001:
+                break
+        return vel * 3.6
+
+    if wind_kmh < 2:
+        base = speed(0)
+        return 0.0, base
+
+    base       = speed(0)
+    v_head     = speed(wind_kmh)
+    v_tail     = speed(-wind_kmh)
+    # harmonic mean (equal distance each way)
+    t_total    = 90.0 / v_head + 90.0 / v_tail
+    v_avg      = 180.0 / t_total
+    penalty    = round(base - v_avg, 1)
+
+    # small extra for strong gusts (handling, braking in crosswind)
     if gusts_kmh >= 40:
-        penalty += 0.8
+        penalty += 0.5
     elif gusts_kmh >= 30:
-        penalty += 0.4
-    return round(penalty, 1)
+        penalty += 0.2
+
+    return max(0.0, round(penalty, 1)), round(base, 1)
 
 
 def _run_heat_penalty_pct(temp_max):
@@ -111,12 +141,12 @@ async def fetch_race_weather():
     precip    = d["precipitation_sum"][0]
     wcode     = d["weathercode"][0]
 
-    bike_penalty = _bike_wind_penalty_kmh(wind, gusts)
+    bike_penalty, base_speed = _bike_wind_penalty_kmh(wind, gusts, temp_c=temp_max, power_w=145)
     heat_pct     = _run_heat_penalty_pct(temp_max)
     wind_label   = _wind_label(wind_dir)
 
     bike_note = (
-        "-%s km/h fata de viteza optima (vant %d km/h, rafale %d km/h din %s)" % (
+        "-%s km/h fata de viteza pe circuit (vant %d km/h, rafale %d km/h din %s)" % (
             bike_penalty, round(wind), round(gusts), wind_label)
         if bike_penalty > 0 else "Vant neglijabil pe ciclism"
     )

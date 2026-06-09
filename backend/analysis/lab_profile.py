@@ -73,6 +73,46 @@ RACE_NUTRITION = {
     ],
 }
 
+# --- bikecalculator.com physics model ----------------------------------------
+# Exact constants from bikecalculator.js:
+#   aeroValues = [0.388(Hoods), 0.445(Bartops), 0.420(Bar ends), 0.300(Drops),
+#                 0.233(Aerobar), 0.200(Full TT)]
+#   tireValues = [0.005(Clinchers), 0.004(Tubulars), 0.012(MTB)]
+# Formula: vel*(aeroEff*(vel+hw)^2 + tres) = tran*P
+#   aeroEff = CdA * density / 2
+#   tres    = 9.8*(rweight+bweight) * (grade + Crr)
+#   density = (1.293 - 0.00426*T) * exp(-elev/7000)
+#   tran    = 0.95 (drivetrain efficiency)
+
+import math as _math
+
+_CDA     = 0.233   # Aerobar position (TT/tri bike)
+_CRR     = 0.004   # Tubulars (race tire)
+_RWEIGHT = 77.0    # kg (Octavian)
+_BWEIGHT = 9.0     # kg (TT bike)
+_TRAN    = 0.95    # drivetrain efficiency
+_ELEV    = 58.0    # Tours elevation (m)
+
+
+def _bike_speed_kmh(power_w, temp_c=20.0, headwind_kmh=0.0):
+    """Return bike speed in km/h using bikecalculator.com Newton's method."""
+    hw   = headwind_kmh / 3.6
+    rho  = (1.293 - 0.00426 * temp_c) * _math.exp(-_ELEV / 7000.0)
+    tres = 9.8 * (_RWEIGHT + _BWEIGHT) * _CRR
+    aeff = _CDA * rho / 2.0
+    vel  = 8.0  # initial guess m/s
+    for _ in range(200):
+        tv  = vel + hw
+        f   = vel * (aeff * tv * tv + tres) - _TRAN * power_w
+        fp  = aeff * (3.0 * vel + hw) * tv + tres
+        if abs(fp) < 1e-12:
+            break
+        vel -= f / fp
+        if abs(f) < 0.0001:
+            break
+    return vel * 3.6
+
+
 # --- Ironman Tours prediction from lab data ----------------------------------
 
 IRONMAN_SWIM_M  = 3800
@@ -86,15 +126,20 @@ T2_S = 300   # 5 min
 def lab_ironman_prediction(swim_speed_mps=None) -> dict:
     """
     Ironman prediction grounded in lab test zones.
-    BIKE: Z1 lab (125-165W, HR 125-142). Speed via P~v^3 aero drag.
+    BIKE: Z1 lab watts -> speed via bikecalculator.com exact physics
+          (77kg rider + 9kg TT bike, Aerobar CdA=0.233, Tubulars Crr=0.004, flat, 20C).
     RUN: Z1 lab (5:00/km, HR 120-154) + Ironman fatigue factor.
     """
 
     bike_scenarios = {
-        "aggressive":   {"kmh": 29.5, "watts": "165W (Z1 max)", "hr": "142 bpm"},
-        "realistic":    {"kmh": 28.0, "watts": "145W (Z1 mid)", "hr": "135 bpm"},
-        "conservative": {"kmh": 26.5, "watts": "130W (Z1 baza)", "hr": "128 bpm"},
+        "aggressive":   {"watts_val": 165, "watts": "165W (Z1 max)", "hr": "142 bpm"},
+        "realistic":    {"watts_val": 145, "watts": "145W (Z1 mid)", "hr": "135 bpm"},
+        "conservative": {"watts_val": 130, "watts": "130W (Z1 baza)", "hr": "128 bpm"},
     }
+
+    # Pre-compute speeds using bikecalculator.com formula (standard 20C, no wind)
+    for b in bike_scenarios.values():
+        b["kmh"] = round(_bike_speed_kmh(b["watts_val"], temp_c=20.0), 1)
 
     run_scenarios = {
         "aggressive":   {"pace_s_km": 300, "label": "5:00/km (Z1 pur)"},
