@@ -50,18 +50,15 @@ function DashboardContent() {
   const loadData = useCallback(async (t: string) => {
     setLoading(true);
     setError(null);
-    try {
-      const [tl, fit] = await Promise.all([
-        fetchTrainingLoad(t),
-        fetchFitness(t),
-      ]);
-      setTrainingLoad(tl);
-      setFitness(fit);
-    } catch {
-      setError("Nu s-au putut încărca datele. Verifică că backend-ul rulează.");
-    } finally {
-      setLoading(false);
-    }
+    const [tl, fit] = await Promise.allSettled([
+      fetchTrainingLoad(t),
+      fetchFitness(t),
+    ]);
+    if (tl.status === "fulfilled") setTrainingLoad(tl.value);
+    if (fit.status === "fulfilled") setFitness(fit.value);
+    if (tl.status === "rejected" && fit.status === "rejected")
+      setError("Nu s-au putut încărca datele. Verifică conexiunea și re-autentifică-te.");
+    setLoading(false);
   }, []);
 
   useEffect(() => {
