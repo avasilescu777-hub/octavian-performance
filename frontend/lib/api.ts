@@ -24,10 +24,33 @@ export function getAthleteName(): string {
   return localStorage.getItem("athlete_name") || "Athlete";
 }
 
+async function refreshAccessToken(): Promise<string | null> {
+  const refresh = typeof window !== "undefined" ? localStorage.getItem("strava_refresh_token") : null;
+  if (!refresh) return null;
+  try {
+    const res = await fetch(`${API_BASE}/auth/refresh?refresh_token=${refresh}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.access_token) {
+      localStorage.setItem("strava_access_token", data.access_token);
+      if (data.refresh_token) localStorage.setItem("strava_refresh_token", data.refresh_token);
+      return data.access_token;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
 async function apiGet<T>(path: string, token?: string): Promise<T> {
-  const t = token || getToken();
+  let t = token || getToken();
   if (!t) throw new Error("No access token");
-  const res = await fetch(`${API_BASE}${path}?access_token=${t}`);
+  let res = await fetch(`${API_BASE}${path}?access_token=${t}`);
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      t = newToken;
+      res = await fetch(`${API_BASE}${path}?access_token=${t}`);
+    }
+  }
   if (!res.ok) throw new Error(`API error: ${res.status}`);
   return res.json();
 }
@@ -225,5 +248,10 @@ export interface RaceCalibration {
   ironman_calibrated?: RaceSplit;
 }
 
-export const fetchRaceCalibration = (token?: string) =>
-  apiGet<RaceCalibration>("/analysis/race-calibration?race_date=2025-09-06", token);
+export const fetchRaceCalibration = (token?: string) => {
+  const t = token || getToken();
+  if (!t) throw new Error("No access token");
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  return fetch(`${API_BASE}/analysis/race-calibration?access_token=${t}&race_date=2025-09-06`)
+    .then(r => { if (!r.ok) throw new Error(`API error: ${r.status}`); return r.json() as Promise<RaceCalibration>; });
+};
