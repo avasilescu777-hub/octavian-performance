@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { useRouter } from "next/navigation";
 import {
   saveTokens, getToken, getAthleteName, clearTokens,
   fetchTrainingLoad, fetchFitness, fetchZones,
@@ -13,9 +12,8 @@ import ZonesChart from "@/components/ZonesChart";
 import StatCard from "@/components/StatCard";
 import NavBar from "@/components/NavBar";
 
-function DashboardContent() {
+export default function DashboardPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [token, setToken] = useState<string | null>(null);
   const [athleteName, setAthleteName] = useState("");
   const [trainingLoad, setTrainingLoad] = useState<TrainingLoad | null>(null);
@@ -26,10 +24,11 @@ function DashboardContent() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const urlToken = searchParams.get("access_token");
-    const urlRefresh = searchParams.get("refresh_token");
-    const urlAthleteId = searchParams.get("athlete_id");
-    const urlAthleteName = searchParams.get("athlete_name");
+    const params = new URLSearchParams(window.location.search);
+    const urlToken = params.get("access_token");
+    const urlRefresh = params.get("refresh_token");
+    const urlAthleteId = params.get("athlete_id");
+    const urlAthleteName = params.get("athlete_name");
 
     if (urlToken && urlRefresh && urlAthleteId) {
       saveTokens(urlToken, urlRefresh, urlAthleteId, urlAthleteName?.replace("+", " ") || "");
@@ -51,7 +50,7 @@ function DashboardContent() {
           .catch(() => {});
       }
     }
-  }, [searchParams, router]);
+  }, [router]);
 
   const loadData = useCallback(async (t: string) => {
     setLoading(true);
@@ -251,13 +250,3 @@ function DashboardContent() {
   );
 }
 
-export default function DashboardPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"
-      style={{ background: "var(--background)", color: "var(--text-muted)" }}>
-      Se încarcă...
-    </div>}>
-      <DashboardContent />
-    </Suspense>
-  );
-}
