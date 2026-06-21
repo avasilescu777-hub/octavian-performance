@@ -210,11 +210,7 @@ async def get_predictions(access_token: str = Query(None)):
 async def get_ironman_coach(access_token: str = Query(None)):
     token      = await _resolve_token(access_token)
     activities = await fetch_all_activities(token, months=6)
-    try:
-        return full_ironman_analysis(activities)
-    except Exception as e:
-        import traceback
-        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {e}\n{traceback.format_exc()}")
+    return full_ironman_analysis(activities)
 
 
 @app.get("/analysis/lab-profile")

@@ -475,7 +475,7 @@ def analyze_load(activities: list) -> dict:
     tsb = ctl - atl
 
     # Consistency: % of days with some load in last 12 weeks
-    last_84 = [(end - timedelta(days=i)).date() for i in range(84)]
+    last_84 = [(end - timedelta(days=i)) for i in range(84)]
     active_days = sum(1 for d in last_84 if daily.get(d, 0) > 0)
     consistency_pct = round(active_days / 84 * 100)
 
